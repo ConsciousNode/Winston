@@ -1,0 +1,58 @@
+WINSTON
+RFC 1149 · TritOS 2.0.1
+Packet Relay
+Free Flight
+Pause (Esc)
+EXPERIMENT SETUP
+Seed
+Payload
+CARPET/main (362 trytes)
+ATLAS/farm_log (5,000 trytes)
+Paper Barcode
+Ternary (MSS 80 B)
+Binary (MSS 50 B)
+TCP Timers
+Avian-Tuned RTO
+Stock RFC 6298 (60s cap)
+Weather
+Dry (σ = 0.000)
+Drizzle (σ = 0.065)
+Storm (σ = 0.135)
+Run Transfer
+Pilot Packet
+Replay Pilot
+Winston Race
+Race Mount
+microSD Pigeon
+Packet Bird
+RELAY OBJECTIVES
+☐ Deliver a file with matching tryte hash
+☐ Complete a piloted flight & replay
+☐ Finish a Winston Race
+TRANSFER LOG
+Ready. Choose a seed and run a transfer.
+PAPER SCRAP (32 × 22 = 704 DOTS)
+Ternary · RS(128,96)
+σ = 0.000
+LIVE TCP WINDOW (HOST HARNESS)
+TCP STATE
+IDLE
+TRYTE HASH
+—
+PIGEONS SENT
+0
+RETRANSMITS
+0
+SIM TIME
+0.0 s
+DISTANCE
+109.2 m
+FLIGHT TELEMETRY
+AIRSPEED
+14.4 m/s
+ALTITUDE
+25.9 m
+STAMINA
+97%
+RAIN EXPOSURE
+0.00
