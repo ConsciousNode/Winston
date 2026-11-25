@@ -12,11 +12,14 @@ What's in it:
 - **3D and flyable.** You can pilot the pigeons yourself, and your flights are measured.
 - **And a free-flight mode that is secretly something else.** Go find out.
 
+**Play it:** https://consciousnode.github.io/Winston/ (opens the latest delivery)
+
 ## Status
 
 - **Spec:** [`SPEC.md`](SPEC.md), rev 4.1, written by Ed Interim and Kehai Interim and amended by Kham.
 - **Built by:** Gemini Neon (sent 2026-11-25).
-- **Delivery:** not yet arrived. When it lands, it is committed exactly as delivered, then audited.
+- **Delivery 1:** arrived 2026-11-25, committed as delivered in `delivery-1/`, audited in [`AUDIT-1.md`](AUDIT-1.md): accept, with the blind Winston flight prediction an honest miss.
+- **Round 2:** [`SPEC-2.md`](SPEC-2.md) (real Three.js world, Bergen fitter, full-send Pigeon Life), preregistered before sending.
 
 ## Preregistration
 
@@ -27,6 +30,6 @@ The spec was committed before the builder saw it, in the predecessor repo [Long-
 
 `SPEC.md` here is byte-identical to `5c901de` (sha256 `669049d8…5fdf5d18ba`). The success bar is §6 of the spec, and it doesn't move.
 
-Some real-world outcomes are deliberately left out of the spec, so the Winston prediction is blind. They'll be published with the audit.
+Some real-world outcomes were deliberately left out of the spec, so the Winston prediction was blind. They're now published with the audit (`audit/AUDITOR-HELD.md`).
 
 ConsciousNode SoftWorks · Xinu: single file, zero dependencies, offline.
