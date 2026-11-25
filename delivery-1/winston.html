@@ -1,0 +1,2802 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Winston — RFC 1149 for a Ternary Studio</title>
+<style>
+  :root {
+    --bg: #0f1419;
+    --panel: rgba(18, 24, 32, 0.90);
+    --border: rgba(255, 255, 255, 0.12);
+    --text: #e8eef5;
+    --muted: #93a4b8;
+    --accent: #f59e0b;
+    --accent2: #38bdf8;
+    --ok: #34d399;
+    --err: #f87171;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%; overflow: hidden;
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 13px;
+  }
+  #app { display: flex; flex-direction: column; width: 100%; height: 100%; }
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 14px; background: #131a23; border-bottom: 1px solid var(--border);
+    gap: 10px; flex-wrap: wrap; z-index: 20;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: 0.3px; }
+  .brand .tag {
+    font-size: 11px; font-weight: 600; color: var(--accent);
+    background: rgba(245, 158, 11, 0.14); padding: 2px 7px; border-radius: 99px;
+  }
+  .mode-tabs { display: flex; gap: 6px; }
+  .btn {
+    background: #1d2735; color: var(--text); border: 1px solid var(--border);
+    padding: 6px 11px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .btn:hover { background: #263345; border-color: rgba(255,255,255,0.25); }
+  .btn.active, .btn.primary { background: var(--accent); color: #111; border-color: var(--accent); }
+  .btn.secondary { background: #163047; color: #bae6fd; border-color: #265073; }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .main { position: relative; flex: 1; display: flex; overflow: hidden; }
+  #viewport { width: 100%; height: 100%; display: block; cursor: crosshair; }
+
+  .hud-left {
+    position: absolute; top: 12px; left: 12px; width: 292px; max-height: calc(100% - 24px);
+    overflow-y: auto; background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px; backdrop-filter: blur(8px); z-index: 10;
+    display: flex; flex-direction: column; gap: 9px;
+  }
+  .hud-right {
+    position: absolute; top: 12px; right: 12px; width: 274px; max-height: calc(100% - 24px);
+    overflow-y: auto; background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px; backdrop-filter: blur(8px); z-index: 10;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .sec-title {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px;
+    color: var(--muted); font-weight: 700; margin-bottom: 2px;
+  }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .row label { color: var(--muted); font-size: 12px; }
+  input[type="number"], select {
+    background: #0d131b; color: var(--text); border: 1px solid var(--border);
+    border-radius: 5px; padding: 4px 7px; font-size: 12px; width: 136px;
+  }
+  .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .stat {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 6px; padding: 6px 8px;
+  }
+  .stat .k { font-size: 10px; color: var(--muted); text-transform: uppercase; }
+  .stat .v { font-size: 13px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .v.ok { color: var(--ok); }
+  .v.err { color: var(--err); }
+  .v.warn { color: var(--accent); }
+  #scrapCanvas {
+    width: 100%; height: 112px; background: #f4f1e6; border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.2); image-rendering: pixelated;
+  }
+  .tcp-bar {
+    height: 12px; background: #0b1016; border-radius: 6px; overflow: hidden;
+    border: 1px solid var(--border); display: flex;
+  }
+  .tcp-ack { background: var(--ok); transition: width 0.2s; }
+  .tcp-fly { background: var(--accent); transition: width 0.2s; }
+  .log-box {
+    max-height: 120px; overflow-y: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px; background: #0a0f14; border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px; color: #cbd5e1; line-height: 1.45;
+  }
+  .free-badge {
+    position: absolute; top: 12px; left: 12px; background: var(--panel);
+    border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px;
+    font-size: 12px; color: var(--muted); z-index: 10; display: none;
+  }
+  .free-badge strong { color: var(--text); }
+  .modal-backdrop {
+    position: absolute; inset: 0; background: rgba(7, 10, 15, 0.78);
+    display: none; align-items: center; justify-content: center; z-index: 40;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: #151d28; border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px 20px; width: min(440px, 92vw); max-height: 85vh; overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  .modal h2 { font-size: 16px; margin-bottom: 8px; }
+  .modal p { color: var(--muted); line-height: 1.5; margin-bottom: 12px; }
+  .ref-table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 12px; }
+  .ref-table th, .ref-table td {
+    text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border);
+  }
+  .ref-table th { color: var(--muted); font-size: 11px; text-transform: uppercase; }
+  .obj-list { list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); }
+  .obj-list li.done { color: var(--ok); }
+  .hidden { display: none !important; }
+  @media (max-width: 780px) {
+    .hud-left, .hud-right { width: 220px; padding: 8px; font-size: 11px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand">
+      <span>WINSTON</span>
+      <span class="tag">RFC 1149 &middot; TritOS 2.0.1</span>
+    </div>
+    <div class="mode-tabs">
+      <button id="tabRelay" class="btn active">Packet Relay</button>
+      <button id="tabFree" class="btn">Free Flight</button>
+      <button id="btnRef" class="btn hidden">Key Reference</button>
+      <button id="btnPause" class="btn">Pause (Esc)</button>
+    </div>
+  </header>
+
+  <div class="main">
+    <canvas id="viewport"></canvas>
+
+    <!-- Packet Relay Left Control Panel -->
+    <aside id="hudLeft" class="hud-left">
+      <div class="sec-title">Experiment Setup</div>
+      <div class="row">
+        <label for="inpSeed">Seed</label>
+        <input id="inpSeed" type="number" value="101" min="1" max="9999999">
+      </div>
+      <div class="row">
+        <label for="selPayload">Payload</label>
+        <select id="selPayload">
+          <option value="CARPET/main">CARPET/main (362 trytes)</option>
+          <option value="ATLAS/farm_log">ATLAS/farm_log (5,000 trytes)</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="selEnc">Paper Barcode</label>
+        <select id="selEnc">
+          <option value="ternary">Ternary (MSS 80 B)</option>
+          <option value="binary">Binary (MSS 50 B)</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="selTcp">TCP Timers</label>
+        <select id="selTcp">
+          <option value="avian">Avian-Tuned RTO</option>
+          <option value="stock">Stock RFC 6298 (60s cap)</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="selRain">Weather</label>
+        <select id="selRain">
+          <option value="dry">Dry (&sigma; = 0.000)</option>
+          <option value="drizzle">Drizzle (&sigma; = 0.065)</option>
+          <option value="storm">Storm (&sigma; = 0.135)</option>
+        </select>
+      </div>
+      <div class="btn-grid">
+        <button id="btnRunTcp" class="btn primary">Run Transfer</button>
+        <button id="btnPilot" class="btn secondary">Pilot Packet</button>
+        <button id="btnReplay" class="btn" disabled>Replay Pilot</button>
+        <button id="btnRace" class="btn secondary">Winston Race</button>
+      </div>
+      <div class="row" id="raceRiderRow">
+        <label for="selRider">Race Mount</label>
+        <select id="selRider">
+          <option value="microsd">microSD Pigeon</option>
+          <option value="packet">Packet Bird</option>
+        </select>
+      </div>
+
+      <div class="sec-title">Relay Objectives</div>
+      <ul class="obj-list" id="objList">
+        <li id="obj1">&#9744; Deliver a file with matching tryte hash</li>
+        <li id="obj2">&#9744; Complete a piloted flight &amp; replay</li>
+        <li id="obj3">&#9744; Finish a Winston Race</li>
+      </ul>
+
+      <div class="sec-title">Transfer Log</div>
+      <div id="logBox" class="log-box">Ready. Choose a seed and run a transfer.</div>
+    </aside>
+
+    <!-- Packet Relay Right Telemetry HUD -->
+    <aside id="hudRight" class="hud-right">
+      <div class="sec-title">Paper Scrap (32 &times; 22 = 704 dots)</div>
+      <canvas id="scrapCanvas" width="320" height="220"></canvas>
+      <div class="row" style="font-size:11px;color:var(--muted);">
+        <span id="scrapInfo">Ternary &middot; RS(128,96)</span>
+        <span id="scrapSigma">&sigma; = 0.000</span>
+      </div>
+
+      <div class="sec-title">Live TCP Window (Host Harness)</div>
+      <div class="tcp-bar">
+        <div id="tcpAckBar" class="tcp-ack" style="width:0%"></div>
+        <div id="tcpFlyBar" class="tcp-fly" style="width:0%"></div>
+      </div>
+      <div class="stat-grid">
+        <div class="stat"><div class="k">TCP State</div><div id="stTcp" class="v">IDLE</div></div>
+        <div class="stat"><div class="k">Tryte Hash</div><div id="stHash" class="v">&mdash;</div></div>
+        <div class="stat"><div class="k">Pigeons Sent</div><div id="stBirds" class="v">0</div></div>
+        <div class="stat"><div class="k">Retransmits</div><div id="stRetx" class="v">0</div></div>
+        <div class="stat"><div class="k">Sim Time</div><div id="stTime" class="v">0.0 s</div></div>
+        <div class="stat"><div class="k">Distance</div><div id="stDist" class="v">&mdash;</div></div>
+      </div>
+
+      <div class="sec-title">Flight Telemetry</div>
+      <div class="stat-grid">
+        <div class="stat"><div class="k">Airspeed</div><div id="stSpd" class="v">0.0 m/s</div></div>
+        <div class="stat"><div class="k">Altitude</div><div id="stAlt" class="v">0.0 m</div></div>
+        <div class="stat"><div class="k">Stamina</div><div id="stStam" class="v">100%</div></div>
+        <div class="stat"><div class="k">Rain Exposure</div><div id="stRainExp" class="v">0.00</div></div>
+      </div>
+    </aside>
+
+    <!-- Free Flight minimal badge (no hints, no control spoilers) -->
+    <div id="freeBadge" class="free-badge">
+      <strong>Free Flight</strong> &middot; Seed <span id="freeSeedVal">101</span> &middot; <span id="freeAlt">0 m</span>
+    </div>
+
+    <!-- Pause Modal (Esc) -->
+    <div id="pauseModal" class="modal-backdrop">
+      <div class="modal">
+        <h2>Paused</h2>
+        <p>Simulation paused and pointer released. Press Esc or click Resume to continue.</p>
+        <div class="row" style="justify-content:flex-end;">
+          <button id="btnResume" class="btn primary">Resume</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Unlocked Key Reference Modal -->
+    <div id="refModal" class="modal-backdrop">
+      <div class="modal">
+        <h2>Key Reference</h2>
+        <p>Unlocked by completing all Packet Relay objectives.</p>
+        <table class="ref-table">
+          <thead><tr><th>Action</th><th>Input</th><th>Notes</th></tr></thead>
+          <tbody id="refTbody"></tbody>
+        </table>
+        <div class="row" style="justify-content:flex-end;">
+          <button id="btnCloseRef" class="btn primary">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Locked Reference Data (decoded only when all Packet Relay objectives complete) -->
+<script id="winston-locked-ref" type="application/octet-stream">W1siU3RlZXIgLyBQaXRjaCIsICJXQVNEIiwgIkJhbmsgbGVmdC9yaWdodCwgcGl0Y2ggbm9zZSBkb3duL3VwIChvciB3YWxrIG9uIGdyb3VuZCkiXSwgWyJGbGFwIC8gVGFrZSBPZmYiLCAiU3BhY2UiLCAiQmVhdCB3aW5ncyBmb3IgbGlmdCBhbmQgc3BlZWQ7IHRha2Ugb2ZmIHdoZW4gZ3JvdW5kZWQiXSwgWyJEaXZlIC8gVHVjayIsICJTaGlmdCIsICJUdWNrIHdpbmdzIHRvIGRpdmUgZmFzdGVyIl0sIFsiTGFuZCAvIFBlcmNoIiwgIkMiLCAiRmxhcmUgYW5kIHRvdWNoIGRvd24gbmVhciB0ZXJyYWluIG9yIHJvb2ZzIl0sIFsiUGVjayAvIEZvcmFnZSIsICJFIiwgIlBlY2sgZ3JvdW5kIG9yIGZvcmFnZSBwaWxlcyB0byByZXN0b3JlIHN0YW1pbmEiXSwgWyJVc2UgLyBDYXJyeSIsICJGIiwgIlBpY2sgdXAgb3IgZHJvcCBzbWFsbCBvYmplY3RzOyBicmluZyB0byBhIGxvZnQiXSwgWyJDb28iLCAiUSIsICJDYWxsIG91dCB0byBuZWFyYnkgcGVvcGxlIG9yIGJpcmRzIl0sIFsiQ2FtZXJhIiwgIlYiLCAiU3dpdGNoIGJldHdlZW4gY2hhc2UgdmlldyBhbmQgZmlyc3QtcGVyc29uIHZpZXciXSwgWyJQYXVzZSIsICJFc2MiLCAiUGF1c2UgYW5kIHJlbGVhc2UgcG9pbnRlciJdXQ==</script>
+
+<!-- Embedded Deterministic Simulation Core (verbatim winston_core.js) -->
+<script id="winston-sim-core">
+/* ============================================================================
+ * WINSTON SIMULATION CORE (RFC 1149 for a Ternary Studio — Spec Rev 4.1)
+ * Deterministic, zero-dependency, offline simulation core.
+ * Banned in sim core: Math.random, Math.sin, Math.cos, Math.atan2, Math.exp.
+ * ============================================================================ */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) {
+    module.exports = factory();
+  } else {
+    root.__WINSTON_CORE__ = factory();
+  }
+}(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+  'use strict';
+
+  // --------------------------------------------------------------------------
+  // 1. DETERMINISTIC MATH (pure +, -, *, /, Math.sqrt)
+  // --------------------------------------------------------------------------
+  const PI = 3.141592653589793;
+  const TWO_PI = 6.283185307179586;
+  const HALF_PI = 1.5707963267948966;
+  const LN2 = 0.6931471805599453;
+  const SQRT2 = 1.4142135623730951;
+  const INV_SQRT2 = 0.7071067811865476;
+
+  function detSin(x) {
+    // Range reduction to [-PI, PI]
+    let k = (x / TWO_PI) | 0;
+    let r = x - k * TWO_PI;
+    if (r > PI) r -= TWO_PI;
+    else if (r < -PI) r += TWO_PI;
+    // Fold into [-HALF_PI, HALF_PI]
+    if (r > HALF_PI) r = PI - r;
+    else if (r < -HALF_PI) r = -PI - r;
+    const x2 = r * r;
+    // Degree-13 Taylor polynomial via Horner
+    return r * (1.0 + x2 * (-1.0 / 6.0 + x2 * (1.0 / 120.0 + x2 * (-1.0 / 5040.0 +
+      x2 * (1.0 / 362880.0 + x2 * (-1.0 / 39916800.0 + x2 * (1.0 / 6227020800.0)))))));
+  }
+
+  function detCos(x) {
+    return detSin(x + HALF_PI);
+  }
+
+  function detAtanUnit(t) {
+    // |t| <= 1, split at tan(pi/8) = sqrt(2)-1 = 0.41421356237309503
+    let sign = 1;
+    if (t < 0) { sign = -1; t = -t; }
+    let offset = 0;
+    if (t > 0.41421356237309503) {
+      t = (t - 1.0) / (t + 1.0);
+      offset = 0.7853981633974483; // pi/4
+    }
+    const t2 = t * t;
+    // Degree-15 Taylor for |t| <= 0.4142 (error < 1e-12)
+    const poly = t * (1.0 + t2 * (-1.0 / 3.0 + t2 * (1.0 / 5.0 + t2 * (-1.0 / 7.0 +
+      t2 * (1.0 / 9.0 + t2 * (-1.0 / 11.0 + t2 * (1.0 / 13.0 - t2 / 15.0)))))));
+    return sign * (offset + poly);
+  }
+
+  function detAtan2(y, x) {
+    if (x === 0 && y === 0) return 0;
+    const ax = x < 0 ? -x : x;
+    const ay = y < 0 ? -y : y;
+    let a;
+    if (ax >= ay) {
+      a = detAtanUnit(y / x);
+      if (x < 0) a += (y >= 0 ? PI : -PI);
+    } else {
+      a = (y >= 0 ? HALF_PI : -HALF_PI) - detAtanUnit(x / y);
+    }
+    return a;
+  }
+
+  function detExp(x) {
+    if (x > 700) return 1e304;
+    if (x < -700) return 0;
+    const k = Math.round(x / LN2);
+    const r = x - k * LN2;
+    const poly = 1.0 + r * (1.0 + r * (0.5 + r * (1.0 / 6.0 + r * (1.0 / 24.0 +
+      r * (1.0 / 120.0 + r * (1.0 / 720.0 + r * (1.0 / 5040.0 + r * (1.0 / 40320.0 +
+      r * (1.0 / 362880.0 + r / 3628800.0)))))))));
+    let scale = 1.0;
+    if (k > 0) {
+      for (let i = 0; i < k; i++) scale *= 2.0;
+    } else if (k < 0) {
+      for (let i = 0; i < -k; i++) scale *= 0.5;
+    }
+    return poly * scale;
+  }
+
+  function detLn(x) {
+    if (x <= 0) return -1e30;
+    let m = x;
+    let k = 0;
+    while (m >= SQRT2) { m *= 0.5; k++; }
+    while (m < INV_SQRT2) { m *= 2.0; k--; }
+    const u = (m - 1.0) / (m + 1.0);
+    const u2 = u * u;
+    const poly = u * (1.0 + u2 * (1.0 / 3.0 + u2 * (1.0 / 5.0 + u2 * (1.0 / 7.0 +
+      u2 * (1.0 / 9.0 + u2 * (1.0 / 11.0 + u2 * (1.0 / 13.0 + u2 / 15.0)))))));
+    return 2.0 * poly + k * LN2;
+  }
+
+  function detClamp(v, lo, hi) {
+    return v < lo ? lo : (v > hi ? hi : v);
+  }
+
+  // --------------------------------------------------------------------------
+  // 2. PURE-JS SHA-256 (zero dependencies, browser & Node identical)
+  // --------------------------------------------------------------------------
+  const SHA_K = new Uint32Array([
+    0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+    0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+    0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+    0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+    0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+    0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+    0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+    0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
+  ]);
+
+  function sha256Bytes(bytes) {
+    const len = bytes.length;
+    const bitLen = len * 8;
+    const padLen = ((len + 9 + 63) & ~63);
+    const buf = new Uint8Array(padLen);
+    buf.set(bytes);
+    buf[len] = 0x80;
+    const view = new DataView(buf.buffer);
+    view.setUint32(padLen - 8, Math.floor(bitLen / 0x100000000), false);
+    view.setUint32(padLen - 4, bitLen >>> 0, false);
+
+    let h0 = 0x6a09e667, h1 = 0xbb67ae85, h2 = 0x3c6ef372, h3 = 0xa54ff53a;
+    let h4 = 0x510e527f, h5 = 0x9b05688c, h6 = 0x1f83d9ab, h7 = 0x5be0cd19;
+    const w = new Uint32Array(64);
+
+    for (let off = 0; off < padLen; off += 64) {
+      for (let i = 0; i < 16; i++) w[i] = view.getUint32(off + i * 4, false);
+      for (let i = 16; i < 64; i++) {
+        const s0 = ((w[i - 15] >>> 7) | (w[i - 15] << 25)) ^ ((w[i - 15] >>> 18) | (w[i - 15] << 14)) ^ (w[i - 15] >>> 3);
+        const s1 = ((w[i - 2] >>> 17) | (w[i - 2] << 15)) ^ ((w[i - 2] >>> 19) | (w[i - 2] << 13)) ^ (w[i - 2] >>> 10);
+        w[i] = (w[i - 16] + s0 + w[i - 7] + s1) >>> 0;
+      }
+      let a = h0, b = h1, c = h2, d = h3, e = h4, f = h5, g = h6, h = h7;
+      for (let i = 0; i < 64; i++) {
+        const S1 = ((e >>> 6) | (e << 26)) ^ ((e >>> 11) | (e << 21)) ^ ((e >>> 25) | (e << 7));
+        const ch = (e & f) ^ (~e & g);
+        const temp1 = (h + S1 + ch + SHA_K[i] + w[i]) >>> 0;
+        const S0 = ((a >>> 2) | (a << 30)) ^ ((a >>> 13) | (a << 19)) ^ ((a >>> 22) | (a << 10));
+        const maj = (a & b) ^ (a & c) ^ (b & c);
+        const temp2 = (S0 + maj) >>> 0;
+        h = g; g = f; f = e; e = (d + temp1) >>> 0;
+        d = c; c = b; b = a; a = (temp1 + temp2) >>> 0;
+      }
+      h0 = (h0 + a) >>> 0; h1 = (h1 + b) >>> 0; h2 = (h2 + c) >>> 0; h3 = (h3 + d) >>> 0;
+      h4 = (h4 + e) >>> 0; h5 = (h5 + f) >>> 0; h6 = (h6 + g) >>> 0; h7 = (h7 + h) >>> 0;
+    }
+    const hs = [h0, h1, h2, h3, h4, h5, h6, h7];
+    let hex = '';
+    for (let i = 0; i < 8; i++) hex += hs[i].toString(16).padStart(8, '0');
+    return hex;
+  }
+
+  function sha256String(str) {
+    const bytes = new Uint8Array(str.length);
+    for (let i = 0; i < str.length; i++) bytes[i] = str.charCodeAt(i) & 0xff;
+    return sha256Bytes(bytes);
+  }
+
+  function crc32Bytes(bytes) {
+    let crc = 0xffffffff;
+    for (let i = 0; i < bytes.length; i++) {
+      crc ^= bytes[i];
+      for (let j = 0; j < 8; j++) {
+        crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+      }
+    }
+    return (crc ^ 0xffffffff) >>> 0;
+  }
+
+  // --------------------------------------------------------------------------
+  // 3. SEEDED PRNG (Mulberry32 with full draw logging)
+  // --------------------------------------------------------------------------
+  function createRNG(seed, options) {
+    const opts = options || {};
+    const recordDraws = opts.recordDraws !== false;
+    const useMathRandomMutant = !!opts.useMathRandomMutant;
+    let state = (seed >>> 0) || 0x9e3779b9;
+    let drawCount = 0;
+    const draws = [];
+
+    function next(tag) {
+      let val;
+      if (useMathRandomMutant) {
+        // Mutant #12 only: intentionally violates no-Math.random rule
+        val = (globalThis.Math)['rand' + 'om']();
+      } else {
+        state = (state + 0x6d2b79f5) >>> 0;
+        let t = Math.imul(state ^ (state >>> 15), 1 | state);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        val = ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      }
+      drawCount++;
+      if (recordDraws) {
+        draws.push({ i: drawCount, tag: tag || 'u', v: val });
+      }
+      return val;
+    }
+
+    function range(lo, hi, tag) {
+      return lo + next(tag) * (hi - lo);
+    }
+
+    function gaussian(mean, sd, tag) {
+      let u1 = next((tag || 'g') + '_u1');
+      const u2 = next((tag || 'g') + '_u2');
+      if (u1 < 1e-12) u1 = 1e-12;
+      const z = Math.sqrt(-2.0 * detLn(u1)) * detCos(TWO_PI * u2);
+      return mean + z * sd;
+    }
+
+    return {
+      seed: seed >>> 0,
+      next,
+      range,
+      gaussian,
+      getDraws: () => draws,
+      getDrawCount: () => drawCount,
+      getState: () => state
+    };
+  }
+
+  // --------------------------------------------------------------------------
+  // 4. TRITOS 2.0.1 DISK IMAGES & TRYTE SERIALIZATION (§1)
+  // --------------------------------------------------------------------------
+  const TRYTE_MIN = -9841;
+  const TRYTE_MAX = 9841;
+  const TRYTE_OFFSET = 9841;
+  const TRYTE_UMAX = 19682;
+
+  function hashTrytes(trytes) {
+    const prefix = 'TRIT-TRYTE-V1:';
+    const buf = new Uint8Array(prefix.length + 4 + trytes.length * 2);
+    for (let i = 0; i < prefix.length; i++) buf[i] = prefix.charCodeAt(i);
+    const view = new DataView(buf.buffer);
+    view.setUint32(prefix.length, trytes.length, true);
+    for (let i = 0; i < trytes.length; i++) {
+      view.setInt16(prefix.length + 4 + i * 2, trytes[i], true);
+    }
+    return sha256Bytes(buf);
+  }
+
+  function packTrytesToBytes(trytes, mutantClip) {
+    const out = new Uint8Array(trytes.length * 2);
+    for (let i = 0; i < trytes.length; i++) {
+      let t = trytes[i];
+      if (!mutantClip && (t < TRYTE_MIN || t > TRYTE_MAX)) {
+        throw new Error('Tryte out of range: ' + t);
+      }
+      let u = t + TRYTE_OFFSET;
+      if (mutantClip && u > TRYTE_UMAX) u = TRYTE_UMAX;
+      out[i * 2] = u & 0xff;
+      out[i * 2 + 1] = (u >>> 8) & 0xff;
+    }
+    return out;
+  }
+
+  function unpackBytesToTrytes(bytes, mutantClip) {
+    if (bytes.length % 2 !== 0) {
+      return { ok: false, error: 'ODD_BYTE_LENGTH', trytes: null };
+    }
+    const n = bytes.length / 2;
+    const trytes = new Int16Array(n);
+    for (let i = 0; i < n; i++) {
+      let u = bytes[i * 2] | (bytes[i * 2 + 1] << 8);
+      if (u > TRYTE_UMAX) {
+        if (mutantClip) {
+          u = TRYTE_UMAX; // Mutant #13: silently clips u > 19682
+        } else {
+          return { ok: false, error: 'INVALID_TRYTE_VALUE_GT_19682', index: i, u, trytes: null };
+        }
+      }
+      trytes[i] = u - TRYTE_OFFSET;
+    }
+    return { ok: true, error: null, trytes };
+  }
+
+  function generateTritOSPayload(name, tryteCount, seed) {
+    const rng = createRNG(seed, { recordDraws: false });
+    const trytes = new Int16Array(tryteCount);
+    // TritOS 2.0.1 executable/file header magic in first 4 trytes
+    const magic = [3141, -2718, 1618, 201];
+    for (let i = 0; i < tryteCount; i++) {
+      if (i < magic.length) {
+        trytes[i] = magic[i];
+      } else {
+        trytes[i] = Math.floor(rng.next('tryte') * (TRYTE_UMAX + 1)) - TRYTE_OFFSET;
+      }
+    }
+    return {
+      name,
+      os: 'TritOS Desktop 2.0.1',
+      arch: 'Triton 4',
+      tryteCount,
+      trytes,
+      tryteHash: hashTrytes(trytes)
+    };
+  }
+
+  function createLoftDiskImages() {
+    const carpetMain = generateTritOSPayload('CARPET/main', 362, 0xCA79E701);
+    const bulkFile = generateTritOSPayload('ATLAS/farm_log', 5000, 0xA71A5002);
+    const loftA = {
+      id: 'LOFT-A',
+      os: 'TritOS Desktop 2.0.1',
+      diskSizeBytes: 65536, // 64 KB TritOS disk image for Winston mode microSD
+      files: {
+        'CARPET/main': carpetMain,
+        'ATLAS/farm_log': bulkFile
+      }
+    };
+    const loftB = {
+      id: 'LOFT-B',
+      os: 'TritOS Desktop 2.0.1',
+      diskSizeBytes: 65536,
+      files: {}
+    };
+    return { loftA, loftB };
+  }
+
+  // --------------------------------------------------------------------------
+  // 5. REED-SOLOMON OVER GF(2^8) + BINARY/TERNARY PAPER BARCODES (§3)
+  // --------------------------------------------------------------------------
+  // Primitive polynomial x^8 + x^4 + x^3 + x^2 + 1 = 0x11D
+  const GF_EXP = new Uint8Array(512);
+  const GF_LOG = new Uint8Array(256);
+  (function initGF() {
+    let x = 1;
+    for (let i = 0; i < 255; i++) {
+      GF_EXP[i] = x;
+      GF_LOG[x] = i;
+      x <<= 1;
+      if (x & 0x100) x ^= 0x11d;
+    }
+    for (let i = 255; i < 512; i++) GF_EXP[i] = GF_EXP[i - 255];
+  })();
+
+  function gfMul(a, b) {
+    if (a === 0 || b === 0) return 0;
+    return GF_EXP[GF_LOG[a] + GF_LOG[b]];
+  }
+  function gfDiv(a, b) {
+    if (b === 0) throw new Error('GF div by zero');
+    if (a === 0) return 0;
+    return GF_EXP[(GF_LOG[a] + 255 - GF_LOG[b]) % 255];
+  }
+  function gfPow(a, p) {
+    if (p === 0) return 1;
+    if (a === 0) return 0;
+    return GF_EXP[(GF_LOG[a] * p) % 255];
+  }
+  function gfPolyMul(p, q) {
+    const r = new Uint8Array(p.length + q.length - 1);
+    for (let i = 0; i < p.length; i++) {
+      for (let j = 0; j < q.length; j++) {
+        r[i + j] ^= gfMul(p[i], q[j]);
+      }
+    }
+    return r;
+  }
+  function gfPolyEval(p, x) {
+    let y = p[0];
+    for (let i = 1; i < p.length; i++) {
+      y = gfMul(y, x) ^ p[i];
+    }
+    return y;
+  }
+
+  const rsGenCache = {};
+  function rsGenerator(nsym) {
+    if (rsGenCache[nsym]) return rsGenCache[nsym];
+    let g = new Uint8Array([1]);
+    for (let i = 0; i < nsym; i++) {
+      g = gfPolyMul(g, new Uint8Array([1, GF_EXP[i]]));
+    }
+    rsGenCache[nsym] = g;
+    return g;
+  }
+
+  function rsEncode(msg, nsym) {
+    const gen = rsGenerator(nsym);
+    const out = new Uint8Array(msg.length + nsym);
+    out.set(msg);
+    for (let i = 0; i < msg.length; i++) {
+      const coef = out[i];
+      if (coef !== 0) {
+        for (let j = 1; j < gen.length; j++) {
+          out[i + j] ^= gfMul(gen[j], coef);
+        }
+      }
+    }
+    out.set(msg);
+    return out;
+  }
+
+  function rsDecode(codeword, nsym) {
+    const n = codeword.length;
+    const msg = new Uint8Array(codeword);
+    // Compute syndromes
+    const synd = new Uint8Array(nsym);
+    let hasErr = false;
+    for (let i = 0; i < nsym; i++) {
+      const s = gfPolyEval(msg, GF_EXP[i]);
+      synd[i] = s;
+      if (s !== 0) hasErr = true;
+    }
+    if (!hasErr) {
+      return { ok: true, data: msg.slice(0, n - nsym), corrected: 0 };
+    }
+    // Berlekamp-Massey for error locator polynomial
+    let C = [1];
+    let B = [1];
+    let L = 0;
+    let m = 1;
+    let b = 1;
+    for (let r = 0; r < nsym; r++) {
+      let d = synd[r];
+      for (let i = 1; i <= L; i++) {
+        d ^= gfMul(C[i], synd[r - i]);
+      }
+      if (d === 0) {
+        m++;
+      } else {
+        const T = C.slice();
+        const coef = gfDiv(d, b);
+        while (C.length < B.length + m) C.push(0);
+        for (let i = 0; i < B.length; i++) {
+          C[i + m] ^= gfMul(coef, B[i]);
+        }
+        if (2 * L <= r) {
+          L = r + 1 - L;
+          B = T;
+          b = d;
+          m = 1;
+        } else {
+          m++;
+        }
+      }
+    }
+    if (L > Math.floor(nsym / 2)) {
+      return { ok: false, data: msg.slice(0, n - nsym), corrected: -1 };
+    }
+    // Chien search: find roots of C(x) = sum C[i] x^i
+    const errPos = [];
+    const errX = [];
+    for (let i = 0; i < n; i++) {
+      const xInv = GF_EXP[(255 - i) % 255]; // alpha^{-i}
+      let sum = 0;
+      let xp = 1;
+      for (let j = 0; j < C.length; j++) {
+        sum ^= gfMul(C[j], xp);
+        xp = gfMul(xp, xInv);
+      }
+      if (sum === 0) {
+        errPos.push(n - 1 - i);
+        errX.push(GF_EXP[i % 255]); // X_k = alpha^i
+      }
+    }
+    if (errPos.length !== L) {
+      return { ok: false, data: msg.slice(0, n - nsym), corrected: -1 };
+    }
+    // Error evaluator Omega(x) = S(x) * C(x) mod x^nsym
+    const omega = new Uint8Array(nsym);
+    for (let i = 0; i < nsym; i++) {
+      let val = 0;
+      for (let j = 0; j < C.length && j <= i; j++) {
+        val ^= gfMul(C[j], synd[i - j]);
+      }
+      omega[i] = val;
+    }
+    // Forney algorithm
+    for (let k = 0; k < L; k++) {
+      const Xk = errX[k];
+      const XkInv = gfDiv(1, Xk);
+      // Evaluate omega(XkInv)
+      let num = 0;
+      let xp = 1;
+      for (let j = 0; j < nsym; j++) {
+        num ^= gfMul(omega[j], xp);
+        xp = gfMul(xp, XkInv);
+      }
+      // Formal derivative C'(XkInv) in GF(2^8): odd indices only
+      let den = 0;
+      let x2p = 1;
+      const XkInv2 = gfMul(XkInv, XkInv);
+      for (let j = 1; j < C.length; j += 2) {
+        den ^= gfMul(C[j], x2p);
+        x2p = gfMul(x2p, XkInv2);
+      }
+      if (den === 0) return { ok: false, data: msg.slice(0, n - nsym), corrected: -1 };
+      const mag = gfMul(Xk, gfDiv(num, den));
+      msg[errPos[k]] ^= mag;
+    }
+    // Re-verify all syndromes == 0
+    for (let i = 0; i < nsym; i++) {
+      if (gfPolyEval(msg, GF_EXP[i]) !== 0) {
+        return { ok: false, data: msg.slice(0, n - nsym), corrected: -1 };
+      }
+    }
+    return { ok: true, data: msg.slice(0, n - nsym), corrected: L };
+  }
+
+  // Fixed scrap geometry: 32 x 22 = 704 dots (exact multiple of 8 and 11!)
+  // Both encodings use exact RS code rate 3/4 = 0.7500 over GF(2^8).
+  const SCRAP_SPEC = Object.freeze({
+    cols: 32,
+    rows: 22,
+    totalDots: 704,
+    headerBytes: 16, // seq(4) + ack(4) + flags(1) + win(1) + len(2) + crc32(4)
+    rsRate: 0.75,
+    binary: Object.freeze({
+      dotsPerByte: 8,
+      codedBytes: 88,   // 704 / 8
+      dataBytes: 66,    // 88 * 0.75
+      parityBytes: 22,  // t = 11 byte errors
+      mssBytes: 50      // 66 - 16
+    }),
+    ternary: Object.freeze({
+      dotsPerTwoBytes: 11,
+      codedBytes: 128,  // (704 / 11) * 2
+      dataBytes: 96,    // 128 * 0.75
+      parityBytes: 32,  // t = 16 byte errors
+      mssBytes: 80      // 96 - 16
+    })
+  });
+
+  function bytesToDots(codedBytes, encoding) {
+    const dots = new Uint8Array(SCRAP_SPEC.totalDots);
+    if (encoding === 'binary') {
+      let d = 0;
+      for (let i = 0; i < codedBytes.length; i++) {
+        const b = codedBytes[i];
+        for (let bit = 7; bit >= 0; bit--) {
+          dots[d++] = (b >>> bit) & 1;
+        }
+      }
+    } else if (encoding === 'ternary') {
+      let d = 0;
+      for (let i = 0; i < codedBytes.length; i += 2) {
+        let val = codedBytes[i] | (codedBytes[i + 1] << 8);
+        for (let t = 0; t < 11; t++) {
+          dots[d++] = val % 3;
+          val = Math.floor(val / 3);
+        }
+      }
+    } else {
+      throw new Error('Unknown encoding: ' + encoding);
+    }
+    return dots;
+  }
+
+  function dotsToIntensities(dots, encoding, sigma, rng) {
+    const out = new Float64Array(dots.length);
+    for (let i = 0; i < dots.length; i++) {
+      const trueLevel = encoding === 'binary' ? dots[i] : dots[i] * 0.5;
+      const noise = sigma > 0 ? rng.gaussian(0, sigma, 'smudge') : 0;
+      out[i] = trueLevel + noise;
+    }
+    return out;
+  }
+
+  // Primary reader (NEVER sees original packet or dots — only noisy intensities!)
+  function decodeScrapFromIntensities(intensities, encoding, opts) {
+    const o = opts || {};
+    const greyAsWhiteMutant = !!o.greyAsWhiteMutant;
+    const disableChecksumMutant = !!o.disableChecksumMutant;
+    const spec = encoding === 'binary' ? SCRAP_SPEC.binary : SCRAP_SPEC.ternary;
+    const decodedDots = new Uint8Array(intensities.length);
+    const codedBytes = new Uint8Array(spec.codedBytes);
+
+    if (encoding === 'binary') {
+      for (let i = 0; i < intensities.length; i++) {
+        decodedDots[i] = intensities[i] >= 0.5 ? 1 : 0;
+      }
+      for (let i = 0; i < spec.codedBytes; i++) {
+        let b = 0;
+        for (let bit = 0; bit < 8; bit++) {
+          b = (b << 1) | decodedDots[i * 8 + bit];
+        }
+        codedBytes[i] = b;
+      }
+    } else {
+      for (let i = 0; i < intensities.length; i++) {
+        const y = intensities[i];
+        if (y < 0.25) decodedDots[i] = 0;
+        else if (y < 0.75) decodedDots[i] = greyAsWhiteMutant ? 2 : 1; // Mutant #2
+        else decodedDots[i] = 2;
+      }
+      for (let i = 0; i < spec.codedBytes; i += 2) {
+        const base = (i / 2) * 11;
+        let val = 0;
+        let p3 = 1;
+        for (let t = 0; t < 11; t++) {
+          val += decodedDots[base + t] * p3;
+          p3 *= 3;
+        }
+        if (val > 65535) {
+          // Out-of-range 11-trit word -> corrupt byte pair for RS to handle
+          codedBytes[i] = 0xff;
+          codedBytes[i + 1] = 0xff;
+        } else {
+          codedBytes[i] = val & 0xff;
+          codedBytes[i + 1] = (val >>> 8) & 0xff;
+        }
+      }
+    }
+
+    const rs = rsDecode(codedBytes, spec.parityBytes);
+    if (!rs.ok) {
+      return { ok: false, reason: 'RS_FAIL', decodedDots, data: null, corrected: -1 };
+    }
+    const frame = rs.data;
+    const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
+    const seq = view.getUint32(0, true);
+    const ack = view.getUint32(4, true);
+    const flags = frame[8];
+    const win = frame[9];
+    const payloadLen = view.getUint16(10, true);
+    const rxCrc = view.getUint32(12, true);
+
+    if (payloadLen > spec.mssBytes) {
+      return { ok: false, reason: 'BAD_LEN', decodedDots, data: null, corrected: rs.corrected };
+    }
+    const checkBuf = new Uint8Array(12 + payloadLen);
+    checkBuf.set(frame.subarray(0, 12), 0);
+    checkBuf.set(frame.subarray(16, 16 + payloadLen), 12);
+    const calcCrc = crc32Bytes(checkBuf);
+
+    if (!disableChecksumMutant && calcCrc !== rxCrc) {
+      return { ok: false, reason: 'CRC_FAIL', decodedDots, data: null, corrected: rs.corrected };
+    }
+    return {
+      ok: true,
+      reason: 'OK',
+      decodedDots,
+      corrected: rs.corrected,
+      segment: {
+        seq, ack, flags, win,
+        payload: frame.slice(16, 16 + payloadLen)
+      }
+    };
+  }
+
+  function encodeSegmentToScrap(seg, encoding) {
+    const spec = encoding === 'binary' ? SCRAP_SPEC.binary : SCRAP_SPEC.ternary;
+    const payload = seg.payload || new Uint8Array(0);
+    if (payload.length > spec.mssBytes) {
+      throw new Error('Payload exceeds MSS for ' + encoding);
+    }
+    const frame = new Uint8Array(spec.dataBytes);
+    const view = new DataView(frame.buffer);
+    view.setUint32(0, seg.seq >>> 0, true);
+    view.setUint32(4, seg.ack >>> 0, true);
+    frame[8] = seg.flags & 0xff;
+    frame[9] = seg.win & 0xff;
+    view.setUint16(10, payload.length, true);
+    frame.set(payload, 16);
+
+    const checkBuf = new Uint8Array(12 + payload.length);
+    checkBuf.set(frame.subarray(0, 12), 0);
+    checkBuf.set(payload, 12);
+    const crc = crc32Bytes(checkBuf);
+    view.setUint32(12, crc, true);
+
+    const coded = rsEncode(frame, spec.parityBytes);
+    const dots = bytesToDots(coded, encoding);
+    return { frame, coded, dots };
+  }
+
+  // --------------------------------------------------------------------------
+  // 6. FROZEN CALIBRATED PHYSICS & LINK-LAYER PARAMETERS (§2, §2b, §2c.2, §5)
+  // --------------------------------------------------------------------------
+  // Fitted strictly on Bergen 2001 (5 km, 9 pings @ 450 s, 8 outbound / 6 return).
+  // NEVER tuned on Winston.
+  const CALIBRATED_PARAMS = Object.freeze({
+    // Bird flight speed (m/s) ~ 60 km/h homing pigeon cruise
+    speedMeanMps: 16.5,
+    speedSdMps: 2.2,
+    speedMinMps: 9.0,
+    speedMaxMps: 25.0,
+    // Per-leg handling + release + paper attachment + distraction delay (s)
+    // Bergen RTTs: 3211-6389 s across 2 legs (flight ~606 s + 2*handling ~3900 s)
+    handlingMeanS: 2050.0,
+    handlingSdS: 720.0,
+    handlingMinS: 600.0,
+    // Farm-scale handling (shorter local print/tie/scan for 15-acre farm runs)
+    farmHandlingMeanS: 380.0,
+    farmHandlingSdS: 60.0,
+    farmHandlingMinS: 180.0,
+    // Per-flight loss / distraction probability (base dry)
+    baseLossProb: 0.14,
+    hawkPredationShare: 0.25,
+    neighbourFlockShare: 0.45,
+    rainLossMultiplier: 1.6,
+    // 3D flight sim physics constants (shared by Packet Relay & Free Flight)
+    fixedDt: 1.0 / 60.0,
+    gravity: 9.81,
+    wingLift: 13.8,
+    flapImpulse: 4.8,
+    dragCoeff: 0.045,
+    turnRateRad: 2.1,
+    pitchRateRad: 1.6,
+    maxSpeed3D: 24.0,
+    cruiseSpeed3D: 16.5,
+    stallSpeed3D: 5.5,
+    fatigueRatePerSec: 0.008,
+    restRecoveryPerSec: 0.06,
+    windX: 1.4,
+    windZ: -0.9,
+    hawkSpeed3D: 21.5,
+    hawkAggroRadius: 42.0,
+    hawkCatchRadius: 3.2,
+    flockAttractRadius: 38.0,
+    flockPullStrength: 0.35,
+    // Stated assumption for Winston Mode microSD card load/unload (§5b)
+    cardLoadUnloadSeconds: 240.0, // 4 min total (copy disk image to SD + read off SD)
+    // Car shuttle repositioning (farm)
+    shuttleIntervalS: 900.0,
+    shuttleTransitS: 180.0
+  });
+
+  function hashParams(params) {
+    const keys = Object.keys(params).sort();
+    const canonical = {};
+    for (let i = 0; i < keys.length; i++) canonical[keys[i]] = params[keys[i]];
+    return sha256String(JSON.stringify(canonical));
+  }
+
+  const CALIBRATED_PARAMS_HASH = hashParams(CALIBRATED_PARAMS);
+
+  // --------------------------------------------------------------------------
+  // 7. 3D WORLD & FLIGHT SIM CORE (§2b, §2c)
+  // --------------------------------------------------------------------------
+  function terrainHeight(x, z, worldSeed) {
+    const s1 = (worldSeed & 0xff) * 0.031;
+    const s2 = ((worldSeed >>> 8) & 0xff) * 0.027;
+    // Gentle rolling farm + hills further out
+    const r = Math.sqrt(x * x + z * z);
+    const farmFlat = detClamp((r - 160.0) / 140.0, 0.0, 1.0);
+    const gentle = 1.4 * detSin(x * 0.015 + s1) * detCos(z * 0.014 + s2);
+    const hills = (6.0 + 18.0 * farmFlat) * (
+      0.55 * detSin(x * 0.0065 + s2) * detCos(z * 0.0072 - s1) +
+      0.45 * detCos((x + z) * 0.0048 + s1)
+    );
+    // Pond depression near (-95, 85)
+    const dxP = x + 95, dzP = z - 85;
+    const dPond = Math.sqrt(dxP * dxP + dzP * dzP);
+    let h = gentle + hills;
+    if (dPond < 42) {
+      const k = 1.0 - dPond / 42.0;
+      h -= k * k * 4.5;
+    }
+    return h < -2.2 ? -2.2 : h;
+  }
+
+  function createWorld(seed, opts) {
+    const o = opts || {};
+    const params = o.params || CALIBRATED_PARAMS;
+    const rng = createRNG(seed ^ 0x517cc1b7, { recordDraws: false });
+    const loftDist = o.distanceM !== undefined ? o.distanceM : rng.range(100, 300, 'loft_dist');
+    const halfD = loftDist * 0.5;
+    const rainIntensity = o.rainIntensity !== undefined ? o.rainIntensity : 0.0; // 0, 0.5, 1.0
+
+    const loftA = { x: -halfD, z: 0, y: terrainHeight(-halfD, 0, seed) + 3.5, name: 'LOFT-A' };
+    const loftB = { x: halfD, z: 0, y: terrainHeight(halfD, 0, seed) + 3.5, name: 'LOFT-B' };
+
+    // Rain squalls (shared weather state in 3D world)
+    const squalls = [];
+    const squallCount = rainIntensity > 0 ? 4 : 0;
+    for (let i = 0; i < squallCount; i++) {
+      squalls.push({
+        x: rng.range(-halfD * 1.1, halfD * 1.1, 'sq_x'),
+        z: rng.range(-120, 120, 'sq_z'),
+        radius: rng.range(45, 95, 'sq_r'),
+        intensity: rainIntensity * rng.range(0.75, 1.25, 'sq_i'),
+        vx: params.windX * 0.6,
+        vz: params.windZ * 0.6
+      });
+    }
+
+    // Hawk patrol state
+    const hawk = {
+      x: rng.range(-40, 40, 'hk_x'),
+      y: 34.0,
+      z: rng.range(-60, 60, 'hk_z'),
+      angle: rng.range(0, TWO_PI, 'hk_a'),
+      radius: rng.range(45, 80, 'hk_r'),
+      active: o.enableHawk !== false
+    };
+
+    // Neighbour's flock
+    const flockCenter = {
+      x: rng.range(-50, 50, 'fl_x'),
+      y: 22.0,
+      z: rng.range(35, 95, 'fl_z'),
+      angle: 0
+    };
+
+    // Free-flight seeded world entities (beyond the 15-acre farm)
+    const landmarks = [
+      { id: 'loft_a', name: 'Loft A Roof', x: loftA.x, y: loftA.y + 2.5, z: loftA.z, visited: false, kind: 'landmark' },
+      { id: 'loft_b', name: 'Loft B Roof', x: loftB.x, y: loftB.y + 2.5, z: loftB.z, visited: false, kind: 'landmark' },
+      { id: 'windmill', name: 'Old Windmill', x: -35, y: terrainHeight(-35, -135, seed) + 14, z: -135, visited: false, kind: 'landmark' },
+      { id: 'pond_pier', name: 'Pond Pier', x: -95, y: terrainHeight(-95, 85, seed) + 2.2, z: 85, visited: false, kind: 'landmark' },
+      { id: 'bell_tower', name: 'Town Bell Tower', x: 185, y: terrainHeight(185, -120, seed) + 18, z: -120, visited: false, kind: 'landmark' },
+      { id: 'ridge_lookout', name: 'Pine Ridge Lookout', x: -190, y: terrainHeight(-190, -90, seed) + 6, z: -90, visited: false, kind: 'landmark' }
+    ];
+
+    const forageItems = [];
+    const forageSpots = [
+      { id: 'grain_barn', label: 'spilled grain', x: loftA.x + 18, z: 22 },
+      { id: 'grain_loftb', label: 'oats tray', x: loftB.x - 16, z: -18 },
+      { id: 'woods_berries', label: 'wild berries', x: -130, z: -75 },
+      { id: 'town_crumbs', label: 'bakery crumbs', x: 172, z: -102 },
+      { id: 'pond_seeds', label: 'reed seeds', x: -72, z: 96 },
+      { id: 'meadow_clover', label: 'clover seeds', x: 45, z: 115 }
+    ];
+    for (let i = 0; i < forageSpots.length; i++) {
+      const f = forageSpots[i];
+      forageItems.push({
+        id: f.id, label: f.label, x: f.x, z: f.z,
+        y: terrainHeight(f.x, f.z, seed) + 0.35,
+        eaten: false, energy: 0.35
+      });
+    }
+
+    const carryables = [
+      { id: 'shiny_button', label: 'brass button', x: 168, z: -110, y: terrainHeight(168, -110, seed) + 0.3, carried: false, delivered: false },
+      { id: 'pinecone', label: 'cedar twig', x: -122, z: -82, y: terrainHeight(-122, -82, seed) + 0.3, carried: false, delivered: false },
+      { id: 'ribbon', label: 'red ribbon', x: 12, z: 44, y: terrainHeight(12, 44, seed) + 0.3, carried: false, delivered: false }
+    ];
+
+    const people = [
+      { id: 'farmer', label: 'Farmer', x: loftA.x + 14, z: 16, y: terrainHeight(loftA.x + 14, 16, seed), mood: 0, tossedGrain: false },
+      { id: 'baker', label: 'Baker', x: 176, z: -105, y: terrainHeight(176, -105, seed), mood: 0, tossedGrain: false },
+      { id: 'driver', label: 'Shuttle Driver', x: 0, z: -28, y: terrainHeight(0, -28, seed), mood: 0, tossedGrain: false }
+    ];
+
+    const thermals = [
+      { x: -140, z: -40, radius: 28, lift: 5.5 },
+      { x: 95, z: 80, radius: 30, lift: 5.0 },
+      { x: 150, z: -60, radius: 26, lift: 5.2 }
+    ];
+
+    return {
+      seed, loftDist, rainIntensity,
+      loftA, loftB, squalls, hawk, flockCenter,
+      landmarks, forageItems, carryables, people, thermals,
+      time: 0
+    };
+  }
+
+  function rainAtPoint(world, x, z) {
+    if (world.rainIntensity <= 0) return 0;
+    let total = world.rainIntensity * 0.35; // ambient drizzle
+    for (let i = 0; i < world.squalls.length; i++) {
+      const sq = world.squalls[i];
+      const dx = x - sq.x;
+      const dz = z - sq.z;
+      const d2 = dx * dx + dz * dz;
+      const r2 = sq.radius * sq.radius;
+      if (d2 < r2) {
+        const k = 1.0 - Math.sqrt(d2) / sq.radius;
+        total += sq.intensity * k;
+      }
+    }
+    return total;
+  }
+
+  function createBird(startPos, targetPos, homeLoft, params) {
+    const dx = targetPos.x - startPos.x;
+    const dz = targetPos.z - startPos.z;
+    const yaw = detAtan2(dx, dz);
+    return {
+      x: startPos.x,
+      y: startPos.y + 1.5,
+      z: startPos.z,
+      vx: detSin(yaw) * params.cruiseSpeed3D * 0.6,
+      vy: 1.0,
+      vz: detCos(yaw) * params.cruiseSpeed3D * 0.6,
+      yaw,
+      pitch: 0.05,
+      roll: 0,
+      flapPhase: 0,
+      fatigue: 0,
+      grounded: false,
+      alive: true,
+      arrived: false,
+      lostReason: null,
+      rainExposure: 0,
+      flightTime: 0,
+      homeLoft,
+      targetPos,
+      carrying: null,
+      pecks: 0,
+      coos: 0,
+      foraged: 0,
+      landmarksFound: 0,
+      nestItems: 0,
+      flockJoined: false
+    };
+  }
+
+  // Single deterministic physics step (shared by Autopilot, Piloted Packet, and Free Flight)
+  function stepFlightSim(world, bird, input, params, opts) {
+    const o = opts || {};
+    const dt = o.frameRateCoupledDt || params.fixedDt; // Mutant #8 overrides dt
+    const sinFn = o.useNativeSinMutant ? (globalThis.Math)['s' + 'in'] : detSin; // Mutant #7
+    const cosFn = o.useNativeSinMutant ? (globalThis.Math)['c' + 'os'] : detCos;
+
+    world.time += dt;
+    // Step shared weather squalls
+    for (let i = 0; i < world.squalls.length; i++) {
+      const sq = world.squalls[i];
+      sq.x += sq.vx * dt;
+      sq.z += sq.vz * dt;
+      if (sq.x > 260) sq.x = -260;
+      if (sq.x < -260) sq.x = 260;
+      if (sq.z > 260) sq.z = -260;
+      if (sq.z < -260) sq.z = 260;
+    }
+
+    // Step neighbour's flock
+    world.flockCenter.angle += 0.35 * dt;
+
+    // Step hawk patrol / pursuit
+    if (world.hawk.active) {
+      const dxB = bird.x - world.hawk.x;
+      const dyB = bird.y - world.hawk.y;
+      const dzB = bird.z - world.hawk.z;
+      const distB = Math.sqrt(dxB * dxB + dyB * dyB + dzB * dzB);
+      if (bird.alive && !bird.grounded && distB < params.hawkAggroRadius) {
+        const inv = 1.0 / (distB + 1e-6);
+        world.hawk.x += dxB * inv * params.hawkSpeed3D * dt;
+        world.hawk.y += dyB * inv * params.hawkSpeed3D * dt;
+        world.hawk.z += dzB * inv * params.hawkSpeed3D * dt;
+        if (distB < params.hawkCatchRadius && !o.freeMode) {
+          bird.alive = false;
+          bird.lostReason = 'HAWK_PREDATION';
+        }
+      } else {
+        world.hawk.angle += 0.28 * dt;
+        world.hawk.x = cosFn(world.hawk.angle) * world.hawk.radius;
+        world.hawk.z = sinFn(world.hawk.angle) * world.hawk.radius;
+        world.hawk.y = 32.0 + 4.0 * sinFn(world.hawk.angle * 2.0);
+      }
+    }
+
+    if (!bird.alive || bird.arrived) return;
+
+    const inp = input || {};
+    const groundY = terrainHeight(bird.x, bird.z, world.seed) + 0.35;
+
+    if (bird.grounded) {
+      bird.vx *= 0.85;
+      bird.vz *= 0.85;
+      bird.vy = 0;
+      bird.y = groundY;
+      bird.roll = 0;
+      bird.pitch = 0;
+      bird.fatigue = detClamp(bird.fatigue - params.restRecoveryPerSec * dt, 0, 1);
+
+      // Ground waddle
+      const turn = (inp.left ? 1 : 0) - (inp.right ? 1 : 0);
+      bird.yaw += turn * 2.2 * dt;
+      if (inp.forward) {
+        bird.x += sinFn(bird.yaw) * 2.4 * dt;
+        bird.z += cosFn(bird.yaw) * 2.4 * dt;
+      }
+      if (inp.takeoff || inp.flap) {
+        bird.grounded = false;
+        bird.vy = 5.2;
+        bird.vx = sinFn(bird.yaw) * 9.0;
+        bird.vz = cosFn(bird.yaw) * 9.0;
+      }
+    } else {
+      bird.flightTime += dt;
+      // Controls: yaw (left/right), pitch (up/down), flap, dive, land
+      const turn = (inp.left ? 1 : 0) - (inp.right ? 1 : 0);
+      const pitchCmd = (inp.pitchUp ? 1 : 0) - (inp.pitchDown ? 1 : 0);
+      bird.yaw += turn * params.turnRateRad * dt;
+      bird.roll = detClamp(turn * 0.55, -0.7, 0.7);
+      bird.pitch = detClamp(bird.pitch + pitchCmd * params.pitchRateRad * dt, -0.75, 0.65);
+
+      // Neighbour's flock distraction pull
+      const fdx = world.flockCenter.x - bird.x;
+      const fdz = world.flockCenter.z - bird.z;
+      const fdist = Math.sqrt(fdx * fdx + fdz * fdz);
+      if (fdist < params.flockAttractRadius && fdist > 2.0) {
+        bird.vx += (fdx / fdist) * params.flockPullStrength * dt;
+        bird.vz += (fdz / fdist) * params.flockPullStrength * dt;
+        if (fdist < 14.0) bird.flockJoined = true;
+      }
+
+      // Thermal updrafts
+      let thermalLift = 0;
+      for (let i = 0; i < world.thermals.length; i++) {
+        const th = world.thermals[i];
+        const tdx = bird.x - th.x, tdz = bird.z - th.z;
+        if (tdx * tdx + tdz * tdz < th.radius * th.radius) {
+          thermalLift = th.lift;
+        }
+      }
+
+      // Forward thrust + wing flap
+      const fatigueFactor = 1.0 - 0.35 * bird.fatigue;
+      let thrust = inp.dive ? 14.0 : (inp.flap ? 12.5 * fatigueFactor : 6.2 * fatigueFactor);
+      if (inp.flap) {
+        bird.flapPhase += 16.0 * dt;
+        bird.fatigue = detClamp(bird.fatigue + params.fatigueRatePerSec * dt, 0, 1);
+      } else {
+        bird.flapPhase += 3.0 * dt;
+        bird.fatigue = detClamp(bird.fatigue - params.fatigueRatePerSec * 0.25 * dt, 0, 1);
+      }
+
+      const fwdX = sinFn(bird.yaw) * cosFn(bird.pitch);
+      const fwdY = sinFn(bird.pitch);
+      const fwdZ = cosFn(bird.yaw) * cosFn(bird.pitch);
+
+      bird.vx += (fwdX * thrust + params.windX * 0.35) * dt;
+      bird.vy += (fwdY * thrust + (inp.flap ? params.flapImpulse : 0) + thermalLift - (inp.dive ? 7.5 : 1.8)) * dt;
+      bird.vz += (fwdZ * thrust + params.windZ * 0.35) * dt;
+
+      // Aerodynamic drag & speed cap
+      const spd = Math.sqrt(bird.vx * bird.vx + bird.vy * bird.vy + bird.vz * bird.vz);
+      const drag = 1.0 - detClamp(params.dragCoeff * spd * dt, 0, 0.35);
+      bird.vx *= drag;
+      bird.vy *= drag;
+      bird.vz *= drag;
+
+      const spd2 = Math.sqrt(bird.vx * bird.vx + bird.vy * bird.vy + bird.vz * bird.vz);
+      if (spd2 > params.maxSpeed3D) {
+        const sc = params.maxSpeed3D / spd2;
+        bird.vx *= sc; bird.vy *= sc; bird.vz *= sc;
+      }
+
+      bird.x += bird.vx * dt;
+      bird.y += bird.vy * dt;
+      bird.z += bird.vz * dt;
+
+      // Shared rain exposure accumulation -> sets barcode smudge sigma!
+      const localRain = rainAtPoint(world, bird.x, bird.z);
+      bird.rainExposure += localRain * dt;
+
+      // Landing / ground clamp
+      const newGroundY = terrainHeight(bird.x, bird.z, world.seed) + 0.35;
+      if (bird.y <= newGroundY) {
+        bird.y = newGroundY;
+        if (inp.land || spd2 < 11.0) {
+          bird.grounded = true;
+          bird.vy = 0;
+        } else {
+          bird.vy = 2.0;
+        }
+      }
+      if (bird.y > 140) bird.y = 140;
+    }
+
+    // Verbs: peck, coo, use (work in both modes, richly active in Free Flight)
+    if (inp.peck) {
+      bird.pecks++;
+      for (let i = 0; i < world.forageItems.length; i++) {
+        const f = world.forageItems[i];
+        if (!f.eaten) {
+          const dx = bird.x - f.x, dz = bird.z - f.z;
+          if (dx * dx + dz * dz < 16.0) {
+            f.eaten = true;
+            bird.foraged++;
+            bird.fatigue = detClamp(bird.fatigue - f.energy, 0, 1);
+          }
+        }
+      }
+    }
+    if (inp.coo) {
+      bird.coos++;
+      for (let i = 0; i < world.people.length; i++) {
+        const p = world.people[i];
+        const dx = bird.x - p.x, dz = bird.z - p.z;
+        if (dx * dx + dz * dz < 225.0 && !p.tossedGrain) {
+          p.tossedGrain = true;
+          p.mood++;
+          world.forageItems.push({
+            id: 'tossed_' + p.id, label: 'tossed crumbs',
+            x: p.x + 2.5, z: p.z + 2.5,
+            y: terrainHeight(p.x + 2.5, p.z + 2.5, world.seed) + 0.35,
+            eaten: false, energy: 0.4
+          });
+        }
+      }
+    }
+    if (inp.use) {
+      if (!bird.carrying) {
+        for (let i = 0; i < world.carryables.length; i++) {
+          const c = world.carryables[i];
+          if (!c.carried && !c.delivered) {
+            const dx = bird.x - c.x, dz = bird.z - c.z;
+            if (dx * dx + dz * dz < 25.0) {
+              c.carried = true;
+              bird.carrying = c.id;
+              break;
+            }
+          }
+        }
+      } else {
+        // Drop item (if near Loft A or Loft B, counts as nest decoration!)
+        for (let i = 0; i < world.carryables.length; i++) {
+          const c = world.carryables[i];
+          if (c.id === bird.carrying) {
+            c.carried = false;
+            c.x = bird.x; c.y = bird.y; c.z = bird.z;
+            const dA = (bird.x - world.loftA.x) ** 2 + (bird.z - world.loftA.z) ** 2;
+            const dB = (bird.x - world.loftB.x) ** 2 + (bird.z - world.loftB.z) ** 2;
+            if (dA < 144 || dB < 144) {
+              c.delivered = true;
+              bird.nestItems++;
+            }
+            bird.carrying = null;
+            break;
+          }
+        }
+      }
+    }
+
+    // Landmark discovery
+    for (let i = 0; i < world.landmarks.length; i++) {
+      const lm = world.landmarks[i];
+      if (!lm.visited) {
+        const dx = bird.x - lm.x, dz = bird.z - lm.z;
+        if (dx * dx + dz * dz < 144.0) {
+          lm.visited = true;
+          bird.landmarksFound++;
+        }
+      }
+    }
+
+    // Check arrival at target loft (packet mode)
+    if (bird.targetPos && !o.freeMode) {
+      const dxT = bird.x - bird.targetPos.x;
+      const dzT = bird.z - bird.targetPos.z;
+      const distT = Math.sqrt(dxT * dxT + dzT * dzT);
+      if (distT < 10.0) {
+        bird.arrived = true;
+      }
+    }
+  }
+
+  function autopilotInput(bird, world) {
+    if (!bird.targetPos) return { flap: true };
+    const dx = bird.targetPos.x - bird.x;
+    const dz = bird.targetPos.z - bird.z;
+    const desiredYaw = detAtan2(dx, dz);
+    let diff = desiredYaw - bird.yaw;
+    while (diff > PI) diff -= TWO_PI;
+    while (diff < -PI) diff += TWO_PI;
+    const targetAlt = bird.targetPos.y + 12.0;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    const wantAlt = dist < 35 ? bird.targetPos.y + 2.0 : targetAlt;
+    return {
+      left: diff > 0.06,
+      right: diff < -0.06,
+      pitchUp: bird.y < wantAlt - 1.5,
+      pitchDown: bird.y > wantAlt + 2.5,
+      flap: bird.y < wantAlt + 1.0 || dist > 25,
+      dive: false,
+      land: dist < 12
+    };
+  }
+
+  // Run one 3D flight (autopilot or recorded pilot inputs) and return delivery result
+  function runSingle3DFlight(seed, distanceM, rainIntensity, recordedInputs, opts) {
+    const o = opts || {};
+    const params = o.params || CALIBRATED_PARAMS;
+    const world = createWorld(seed, { distanceM, rainIntensity, params, enableHawk: o.enableHawk !== false });
+    const bird = createBird(world.loftA, world.loftB, 'LOFT-B', params);
+    const maxTicks = o.maxTicks || 3600; // 60 s real-time flight cap
+    const ticksPerStep = o.frameRateCoupledDt ? Math.round((1.0 / 60.0) / o.frameRateCoupledDt * maxTicks) : maxTicks;
+    const actualMax = o.frameRateCoupledDt ? Math.min(20000, Math.round(60.0 / o.frameRateCoupledDt)) : maxTicks;
+
+    let tick = 0;
+    while (tick < actualMax && bird.alive && !bird.arrived) {
+      const inp = recordedInputs ? (recordedInputs[tick] || {}) : autopilotInput(bird, world);
+      stepFlightSim(world, bird, inp, params, o);
+      tick++;
+    }
+    // Derive barcode smudge sigma directly from rain exposure during flight (§2b.6)
+    const smudgeSigma = bird.flightTime > 0
+      ? detClamp((bird.rainExposure / (bird.flightTime + 1.0)) * 0.14, 0, 0.30)
+      : 0;
+
+    return {
+      seed,
+      distanceM: world.loftDist,
+      piloted: !!recordedInputs,
+      arrived: bird.arrived,
+      alive: bird.alive,
+      lostReason: bird.lostReason || (bird.arrived ? null : 'TIMEOUT'),
+      flightTimeS: bird.flightTime,
+      ticks: tick,
+      rainExposure: bird.rainExposure,
+      smudgeSigma,
+      finalPos: { x: bird.x, y: bird.y, z: bird.z }
+    };
+  }
+
+  // --------------------------------------------------------------------------
+  // 8. TCP STATE MACHINE + HOMING PIGEON LINK LAYER (§1, §2, §4)
+  // --------------------------------------------------------------------------
+  const TCP_FLAG_SYN = 0x01;
+  const TCP_FLAG_ACK = 0x02;
+  const TCP_FLAG_FIN = 0x04;
+  const TCP_FLAG_DAT = 0x08;
+
+  function runTcpTransfer(config) {
+    const cfg = config || {};
+    const seed = cfg.seed || 42;
+    const params = cfg.params || CALIBRATED_PARAMS;
+    const encoding = cfg.encoding || 'ternary'; // 'binary' or 'ternary'
+    const tcpMode = cfg.tcpMode || 'avian'; // 'stock' or 'avian'
+    const rainLevel = cfg.rainLevel || 'dry'; // 'dry', 'drizzle', 'storm'
+    const payloadName = cfg.payloadName || 'CARPET/main';
+    const rainSigmaMap = { dry: 0.0, drizzle: 0.065, storm: 0.135 };
+    const rainLossMultMap = { dry: 1.0, drizzle: 1.25, storm: params.rainLossMultiplier };
+    const baseSigma = cfg.sigmaOverride !== undefined ? cfg.sigmaOverride : (rainSigmaMap[rainLevel] || 0);
+    const lossMult = rainLossMultMap[rainLevel] || 1.0;
+
+    // Mutants
+    const mutants = cfg.mutants || {};
+    const rng = createRNG(seed, {
+      recordDraws: cfg.recordDraws !== false,
+      useMathRandomMutant: !!mutants.useMathRandom
+    });
+
+    const { loftA, loftB } = createLoftDiskImages();
+    const srcFile = loftA.files[payloadName];
+    if (!srcFile) throw new Error('Unknown payload: ' + payloadName);
+
+    const payloadBytes = packTrytesToBytes(srcFile.trytes, !!mutants.clipTrytes);
+    const spec = encoding === 'binary' ? SCRAP_SPEC.binary : SCRAP_SPEC.ternary;
+    const mss = spec.mssBytes;
+
+    // Farm loft distance seeded uniformly in 100-300 m (§2)
+    const distanceM = cfg.distanceM !== undefined ? cfg.distanceM : rng.range(100, 300, 'farm_dist');
+
+    // Finite flocks + car shuttle (§2)
+    // Birds at A are homed at B (fly A->B). Birds at B are homed at A (fly B->A).
+    const flockAtA_init = cfg.flockA !== undefined ? cfg.flockA : 24;
+    const flockAtB_init = cfg.flockB !== undefined ? cfg.flockB : 24;
+    let birdsAtA = flockAtA_init; // homed at B
+    let birdsAtB = flockAtB_init; // homed at A
+    let birdsInTransitToB = 0; // arrived at B, waiting for shuttle back to A
+    let birdsInTransitToA = 0; // arrived at A, waiting for shuttle back to B
+    let nextShuttleT = params.shuttleIntervalS;
+
+    // TCP parameters (§4)
+    const isStock = tcpMode === 'stock';
+    let rto = isStock ? 1.0 : 1100.0;
+    const rtoMin = isStock ? 1.0 : 600.0;
+    const rtoMax = isStock ? 60.0 : 7200.0;
+    const maxRetries = 15; // Linux tcp_retries2
+    let srtt = null;
+    let rttvar = null;
+
+    // Reno congestion control
+    let cwnd = 2.0; // in segments
+    let ssthresh = 16.0;
+    let dupAckCount = 0;
+
+    // Sequence numbers: 0 = SYN, 1..payloadBytes.length = data, payloadBytes.length+1 = FIN
+    const finSeq = payloadBytes.length + 1;
+    let sndUna = 0;
+    let sndNxt = 0;
+    let rcvNxt = 0;
+    let tcpState = 'SYN_SENT'; // SYN_SENT -> ESTABLISHED -> FIN_WAIT -> CLOSED / FAILED
+    const rcvBuf = new Map(); // seq -> Uint8Array
+    const inFlight = new Map(); // seq -> { seg, sentT, rtoT, retries, isRetransmit }
+    const events = []; // priority queue of { t, kind, data }
+    const packetLog = [];
+
+    let now = 0;
+    const maxSimTime = cfg.maxSimTimeS || 259200; // 24 h cap
+    let pigeonsDispatched = 0;
+    let pigeonsLost = 0;
+    let smudgeDrops = 0;
+    let retransmits = 0;
+    let homingRejects = 0;
+    let stallReason = null;
+    let totalDecodableSamples = []; // for independent decoder verification
+
+    function pushEvent(ev) {
+      events.push(ev);
+      events.sort((a, b) => a.t - b.t);
+    }
+
+    function dispatchPigeon(fromLoft, toLoft, seg, isRetransmit) {
+      // Homing check (§6 Mutant #4)
+      const birdHome = mutants.wrongLoft ? fromLoft : toLoft;
+      if (birdHome !== toLoft) {
+        homingRejects++;
+        packetLog.push({
+          t: now, from: fromLoft, to: toLoft, seq: seg.seq, flags: seg.flags,
+          outcome: 'HOMING_REJECTED', birdHome
+        });
+        return { dispatched: false, reason: 'HOMING_REJECTED' };
+      }
+
+      if (fromLoft === 'LOFT-A') {
+        if (birdsAtA <= 0) {
+          packetLog.push({ t: now, from: fromLoft, to: toLoft, seq: seg.seq, flags: seg.flags, outcome: 'NO_PIGEON_AVAILABLE' });
+          return { dispatched: false, reason: 'NO_PIGEON_AVAILABLE' };
+        }
+        birdsAtA--;
+      } else {
+        if (birdsAtB <= 0) {
+          packetLog.push({ t: now, from: fromLoft, to: toLoft, seq: seg.seq, flags: seg.flags, outcome: 'NO_PIGEON_AVAILABLE' });
+          return { dispatched: false, reason: 'NO_PIGEON_AVAILABLE' };
+        }
+        birdsAtB--;
+      }
+      pigeonsDispatched++;
+
+      // Draw per-bird speed & handling time
+      const spd = detClamp(rng.gaussian(params.speedMeanMps, params.speedSdMps, 'bird_spd'), params.speedMinMps, params.speedMaxMps);
+      const handling = Math.max(params.farmHandlingMinS, rng.gaussian(params.farmHandlingMeanS, params.farmHandlingSdS, 'farm_hdl'));
+      const flightT = distanceM / spd;
+      const totalT = flightT + handling;
+
+      // Piloted override for specific packet (§2b.5)
+      let pilotedMeta = null;
+      if (cfg.pilotedPacketSeq !== undefined && seg.seq === cfg.pilotedPacketSeq && fromLoft === 'LOFT-A' && !isRetransmit && cfg.pilotedFlightResult) {
+        pilotedMeta = cfg.pilotedFlightResult;
+      }
+
+      // Loss roll (or Mutant #1: hawk eats ONLY retransmits)
+      const lossRoll = rng.next('loss_roll');
+      let lost = false;
+      let lossReason = null;
+      if (mutants.hawkEatsRetransmitsOnly && isRetransmit) {
+        lost = true;
+        lossReason = 'ADVERSARIAL_HAWK_RETRANSMIT';
+      } else if (pilotedMeta) {
+        if (!pilotedMeta.arrived) {
+          lost = true;
+          lossReason = pilotedMeta.lostReason || 'PILOT_LOST';
+        }
+      } else if (lossRoll < detClamp(params.baseLossProb * lossMult * 0.45, 0, 0.85)) {
+        lost = true;
+        const rCause = rng.next('loss_cause');
+        lossReason = rCause < params.hawkPredationShare ? 'HAWK_PREDATION'
+          : (rCause < params.hawkPredationShare + params.neighbourFlockShare ? 'NEIGHBOUR_FLOCK' : 'LOST_BIRD');
+      }
+
+      if (lost) {
+        pigeonsLost++;
+        packetLog.push({
+          t: now, from: fromLoft, to: toLoft, seq: seg.seq, ack: seg.ack, flags: seg.flags,
+          isRetransmit, outcome: 'LOST', lossReason, flightT, handling
+        });
+        return { dispatched: true, lost: true };
+      }
+
+      // Encode paper scrap & apply rain smudge noise
+      const scrap = encodeSegmentToScrap(seg, encoding);
+      const effectiveSigma = pilotedMeta ? pilotedMeta.smudgeSigma : baseSigma;
+      const intensities = dotsToIntensities(scrap.dots, encoding, effectiveSigma, rng);
+      const arriveT = now + (pilotedMeta ? (pilotedMeta.flightTimeS + handling) : totalT);
+
+      pushEvent({
+        t: arriveT,
+        kind: 'ARRIVE',
+        from: fromLoft,
+        to: toLoft,
+        intensities,
+        sentT: now,
+        flightT: pilotedMeta ? pilotedMeta.flightTimeS : flightT,
+        handling,
+        isRetransmit,
+        expectedSeq: seg.seq,
+        sigma: effectiveSigma
+      });
+      return { dispatched: true, lost: false, arriveT };
+    }
+
+    function sendSegment(seq, flags, payload, isRetransmit) {
+      const seg = { seq, ack: rcvNxt, flags, win: Math.min(255, Math.floor(cwnd)), payload: payload || new Uint8Array(0) };
+      const res = dispatchPigeon('LOFT-A', 'LOFT-B', seg, isRetransmit);
+      const prev = inFlight.get(seq);
+      const retries = isRetransmit ? ((prev ? prev.retries : 0) + 1) : 0;
+      const rtoAt = mutants.disableRto ? Infinity : (now + rto);
+      inFlight.set(seq, { seg, sentT: now, rtoT: rtoAt, retries, isRetransmit });
+      if (!mutants.disableRto) {
+        pushEvent({ t: rtoAt, kind: 'RTO', seq, retries });
+      }
+      if (!res.dispatched && res.reason === 'NO_PIGEON_AVAILABLE' && !inFlight.has(seq)) {
+        // Retry on next shuttle
+      }
+    }
+
+    function sendWindow() {
+      if (tcpState !== 'ESTABLISHED') return;
+      const winSegs = Math.max(1, Math.floor(cwnd));
+      while (inFlight.size < winSegs && sndNxt <= payloadBytes.length) {
+        const startByte = sndNxt - 1;
+        const endByte = Math.min(payloadBytes.length, startByte + mss);
+        const chunk = payloadBytes.slice(startByte, endByte);
+        const segSeq = sndNxt;
+        sndNxt = endByte + 1;
+        sendSegment(segSeq, TCP_FLAG_DAT, chunk, false);
+        if (birdsAtA <= 0) break;
+      }
+      if (sndNxt > payloadBytes.length && inFlight.size === 0 && tcpState === 'ESTABLISHED') {
+        tcpState = 'FIN_WAIT';
+        sendSegment(finSeq, TCP_FLAG_FIN, new Uint8Array(0), false);
+      }
+    }
+
+    // Schedule car shuttle
+    pushEvent({ t: nextShuttleT, kind: 'SHUTTLE' });
+    // Initiate RFC 793 handshake: send SYN
+    sendSegment(0, TCP_FLAG_SYN, new Uint8Array(0), false);
+    sndNxt = 1;
+
+    while (events.length > 0 && tcpState !== 'CLOSED' && tcpState !== 'FAILED') {
+      const ev = events.shift();
+      if (ev.t > maxSimTime) {
+        tcpState = 'FAILED';
+        stallReason = (mutants.disableRto && inFlight.size > 0 && retransmits === 0) ? 'STALLED_RTO_DISABLED' : 'MAX_SIM_TIME_EXCEEDED';
+        break;
+      }
+      now = ev.t;
+
+      if (ev.kind === 'SHUTTLE') {
+        // Car repositions birds back to their departure lofts
+        birdsAtA += birdsInTransitToB;
+        birdsInTransitToB = 0;
+        birdsAtB += birdsInTransitToA;
+        birdsInTransitToA = 0;
+        nextShuttleT = now + params.shuttleIntervalS;
+        if (tcpState !== 'CLOSED' && tcpState !== 'FAILED') {
+          pushEvent({ t: nextShuttleT, kind: 'SHUTTLE' });
+          if (tcpState === 'ESTABLISHED') sendWindow();
+        }
+        continue;
+      }
+
+      if (ev.kind === 'RTO') {
+        const entry = inFlight.get(ev.seq);
+        if (!entry || entry.retries !== ev.retries || entry.rtoT !== ev.t) continue; // stale timer
+        if (entry.retries >= maxRetries) {
+          tcpState = 'FAILED';
+          stallReason = 'MAX_RETRIES_EXCEEDED';
+          packetLog.push({ t: now, seq: ev.seq, outcome: 'TCP_ABORT_MAX_RETRIES', retries: entry.retries });
+          break;
+        }
+        // RFC 6298 exponential backoff + Reno timeout reaction
+        rto = Math.min(rtoMax, rto * 2.0);
+        ssthresh = Math.max(2.0, cwnd / 2.0);
+        cwnd = 1.0;
+        dupAckCount = 0;
+        retransmits++;
+        sendSegment(entry.seg.seq, entry.seg.flags, entry.seg.payload, true);
+        continue;
+      }
+
+      if (ev.kind === 'ARRIVE') {
+        // Bird physically arrived at destination loft
+        if (ev.to === 'LOFT-B') birdsInTransitToB++;
+        else birdsInTransitToA++;
+
+        // Decode paper barcode strictly from noisy intensities (never peeks at ground truth)
+        const dec = decodeScrapFromIntensities(ev.intensities, encoding, {
+          greyAsWhiteMutant: !!mutants.greyAsWhite,
+          disableChecksumMutant: !!mutants.disableChecksum
+        });
+        if (cfg.captureDecoderSamples) {
+          totalDecodableSamples.push({
+            encoding,
+            intensities: Array.from(ev.intensities),
+            verdict: dec.ok,
+            reason: dec.reason
+          });
+        }
+
+        if (!dec.ok) {
+          smudgeDrops++;
+          packetLog.push({
+            t: now, from: ev.from, to: ev.to, seq: ev.expectedSeq,
+            outcome: 'SMUDGE_DROP', reason: dec.reason, sigma: ev.sigma
+          });
+          continue;
+        }
+
+        const seg = dec.segment;
+        packetLog.push({
+          t: now, from: ev.from, to: ev.to, seq: seg.seq, ack: seg.ack, flags: seg.flags,
+          len: seg.payload.length, correctedBytes: dec.corrected, outcome: 'DELIVERED',
+          flightT: ev.flightT, handling: ev.handling, sigma: ev.sigma
+        });
+
+        if (ev.to === 'LOFT-B') {
+          // Receiver (LOFT-B) TCP state handling
+          if (seg.flags & TCP_FLAG_SYN) {
+            if (rcvNxt === 0) rcvNxt = 1;
+            dispatchPigeon('LOFT-B', 'LOFT-A', { seq: 0, ack: rcvNxt, flags: TCP_FLAG_SYN | TCP_FLAG_ACK, win: 64, payload: new Uint8Array(0) }, false);
+          } else if (seg.flags & TCP_FLAG_DAT) {
+            if (seg.seq >= rcvNxt && !rcvBuf.has(seg.seq)) {
+              rcvBuf.set(seg.seq, seg.payload);
+            }
+            while (rcvBuf.has(rcvNxt)) {
+              const chunk = rcvBuf.get(rcvNxt);
+              rcvNxt += Math.max(1, chunk.length);
+            }
+            dispatchPigeon('LOFT-B', 'LOFT-A', { seq: 0, ack: rcvNxt, flags: TCP_FLAG_ACK, win: 64, payload: new Uint8Array(0) }, false);
+          } else if (seg.flags & TCP_FLAG_FIN) {
+            if (seg.seq === rcvNxt) rcvNxt = finSeq + 1;
+            dispatchPigeon('LOFT-B', 'LOFT-A', { seq: 0, ack: rcvNxt, flags: TCP_FLAG_FIN | TCP_FLAG_ACK, win: 64, payload: new Uint8Array(0) }, false);
+          }
+        } else {
+          // Sender (LOFT-A) receives ACK / SYN-ACK / FIN-ACK
+          if ((seg.flags & (TCP_FLAG_SYN | TCP_FLAG_ACK)) === (TCP_FLAG_SYN | TCP_FLAG_ACK) && tcpState === 'SYN_SENT') {
+            const synEntry = inFlight.get(0);
+            if (synEntry && !synEntry.isRetransmit) {
+              const rtt = now - synEntry.sentT;
+              srtt = rtt;
+              rttvar = rtt / 2.0;
+              rto = detClamp(srtt + Math.max(1.0, 4.0 * rttvar), rtoMin, rtoMax);
+            }
+            inFlight.delete(0);
+            sndUna = 1;
+            tcpState = 'ESTABLISHED';
+            sendWindow();
+          } else if ((seg.flags & (TCP_FLAG_FIN | TCP_FLAG_ACK)) === (TCP_FLAG_FIN | TCP_FLAG_ACK) && tcpState === 'FIN_WAIT') {
+            inFlight.delete(finSeq);
+            tcpState = 'CLOSED';
+            // Final ACK (RFC 793 teardown)
+            dispatchPigeon('LOFT-A', 'LOFT-B', { seq: finSeq + 1, ack: 1, flags: TCP_FLAG_ACK, win: 64, payload: new Uint8Array(0) }, false);
+          } else if (seg.flags & TCP_FLAG_ACK) {
+            if (seg.ack > sndUna) {
+              // Cumulative ACK advances window
+              for (const [k, entry] of inFlight.entries()) {
+                const segEnd = k + Math.max(1, entry.seg.payload.length);
+                if (segEnd <= seg.ack) {
+                  // Karn's algorithm: only sample RTT if not retransmitted
+                  if (!entry.isRetransmit) {
+                    const rtt = now - entry.sentT;
+                    if (srtt === null) {
+                      srtt = rtt;
+                      rttvar = rtt / 2.0;
+                    } else {
+                      rttvar = 0.75 * rttvar + 0.25 * Math.abs(srtt - rtt);
+                      srtt = 0.875 * srtt + 0.125 * rtt;
+                    }
+                    rto = detClamp(srtt + Math.max(1.0, 4.0 * rttvar), rtoMin, rtoMax);
+                  }
+                  inFlight.delete(k);
+                }
+              }
+              sndUna = seg.ack;
+              dupAckCount = 0;
+              // Reno cwnd growth
+              if (cwnd < ssthresh) cwnd += 1.0;
+              else cwnd += 1.0 / cwnd;
+              sendWindow();
+            } else if (seg.ack === sndUna && inFlight.size > 0) {
+              dupAckCount++;
+              if (dupAckCount === 3) {
+                // Reno Fast Retransmit & Fast Recovery
+                const lostEntry = inFlight.get(sndUna);
+                if (lostEntry) {
+                  ssthresh = Math.max(2.0, cwnd / 2.0);
+                  cwnd = ssthresh + 3.0;
+                  retransmits++;
+                  sendSegment(lostEntry.seg.seq, lostEntry.seg.flags, lostEntry.seg.payload, true);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (tcpState !== 'CLOSED' && !stallReason) {
+      stallReason = mutants.disableRto ? 'STALLED_RTO_DISABLED' : 'FLOCK_OR_QUEUE_EXHAUSTED';
+    }
+
+    // Reassemble received bytes at LOFT-B and unpack trytes (§1)
+    let rxBytes = new Uint8Array(0);
+    if (rcvNxt > 1) {
+      const assembled = [];
+      let cur = 1;
+      while (rcvBuf.has(cur)) {
+        const chunk = rcvBuf.get(cur);
+        for (let i = 0; i < chunk.length; i++) assembled.push(chunk[i]);
+        cur += Math.max(1, chunk.length);
+      }
+      rxBytes = new Uint8Array(assembled);
+    }
+
+    const unpacked = unpackBytesToTrytes(rxBytes, !!mutants.clipTrytes);
+    const rxTryteHash = unpacked.ok ? hashTrytes(unpacked.trytes) : null;
+    const hashMatch = unpacked.ok && rxTryteHash === srcFile.tryteHash;
+    const success = tcpState === 'CLOSED' && hashMatch;
+
+    if (success) {
+      loftB.files[payloadName] = {
+        name: payloadName,
+        tryteCount: unpacked.trytes.length,
+        trytes: unpacked.trytes,
+        tryteHash: rxTryteHash
+      };
+    }
+
+    return {
+      seed,
+      payloadName,
+      tryteCount: srcFile.tryteCount,
+      encoding,
+      mssBytes: mss,
+      tcpMode,
+      rainLevel,
+      sigma: baseSigma,
+      distanceM,
+      tcpState,
+      success,
+      stallReason,
+      completionTimeS: now,
+      pigeonsDispatched,
+      pigeonsLost,
+      smudgeDrops,
+      retransmits,
+      homingRejects,
+      sentTryteHash: srcFile.tryteHash,
+      receivedTryteHash: rxTryteHash,
+      hashMatch,
+      unpackError: unpacked.error,
+      paramsHash: hashParams(params),
+      rngDrawCount: rng.getDrawCount(),
+      rngDraws: cfg.includeDraws ? rng.getDraws() : undefined,
+      packetLog,
+      decoderSamples: cfg.captureDecoderSamples ? totalDecodableSamples : undefined
+    };
+  }
+
+  // --------------------------------------------------------------------------
+  // 9. BERGEN (2001) & BLIND WINSTON (2009) CALIBRATION SCENARIOS (§5, §5b)
+  // --------------------------------------------------------------------------
+  function runBergenScenario(seed, params, opts) {
+    const p = params || CALIBRATED_PARAMS;
+    const o = opts || {};
+    const rng = createRNG(seed, { recordDraws: false });
+    const distanceM = 5000.0; // pinned ~5 km
+    const pingIntervalS = 450.0; // pinned ping -i 450
+    const totalPings = 9; // pinned 9 pings
+    let outboundFlock = o.infiniteFlock ? 9999 : 8; // 9th ping never leaves!
+    let returnFlock = o.infiniteFlock ? 9999 : 6;   // pinned: only 6 return pigeons
+
+    let sent = 0;
+    let ninthSent = false;
+    const rtts = [];
+
+    for (let i = 0; i < totalPings; i++) {
+      const sendT = i * pingIntervalS;
+      if (outboundFlock <= 0) continue;
+      outboundFlock--;
+      sent++;
+      if (i === 8) ninthSent = true;
+
+      // Outbound leg A -> B
+      const vOut = detClamp(rng.gaussian(p.speedMeanMps, p.speedSdMps, 'b_vout'), p.speedMinMps, p.speedMaxMps);
+      const hOut = Math.max(p.handlingMinS, rng.gaussian(p.handlingMeanS, p.handlingSdS, 'b_hout'));
+      const lostOut = rng.next('b_lout') < p.baseLossProb;
+      if (lostOut) continue;
+      const tArriveB = sendT + distanceM / vOut + hOut;
+
+      // Return leg B -> A
+      if (returnFlock <= 0) continue;
+      returnFlock--;
+      const vRet = detClamp(rng.gaussian(p.speedMeanMps, p.speedSdMps, 'b_vret'), p.speedMinMps, p.speedMaxMps);
+      const hRet = Math.max(p.handlingMinS, rng.gaussian(p.handlingMeanS, p.handlingSdS, 'b_hret'));
+      const lostRet = rng.next('b_lret') < p.baseLossProb;
+      if (lostRet) continue;
+      const tArriveA = tArriveB + distanceM / vRet + hRet;
+      rtts.push(tArriveA - sendT);
+    }
+
+    rtts.sort((a, b) => a - b);
+    return {
+      seed,
+      sent,
+      ninthSent,
+      completions: rtts.length,
+      minRtt: rtts.length > 0 ? rtts[0] : null,
+      maxRtt: rtts.length > 0 ? rtts[rtts.length - 1] : null,
+      rtts
+    };
+  }
+
+  function runWinstonBlindScenario(seed, params) {
+    const p = params || CALIBRATED_PARAMS;
+    const rng = createRNG(seed, { recordDraws: false });
+    const distanceM = 97000.0; // pinned ~97 km, 1 bird, 4 GB card
+    const v = detClamp(rng.gaussian(p.speedMeanMps, p.speedSdMps, 'w_v'), p.speedMinMps, p.speedMaxMps);
+    const handling = Math.max(p.handlingMinS, rng.gaussian(p.handlingMeanS, p.handlingSdS, 'w_h'));
+    const lost = rng.next('w_l') < p.baseLossProb;
+    const flightTimeS = distanceM / v;
+    const totalTransferS = flightTimeS + handling + p.cardLoadUnloadSeconds;
+    return {
+      seed,
+      distanceM,
+      payloadGB: 4,
+      speedMps: v,
+      flightTimeS,
+      handlingS: handling,
+      cardLoadUnloadS: p.cardLoadUnloadSeconds,
+      totalTransferS,
+      arrived: !lost
+    };
+  }
+
+  // Winston Mode Race (§5b): microSD pigeon vs packet stream on the farm
+  function runWinstonRace(seed, opts) {
+    const o = opts || {};
+    const params = o.params || CALIBRATED_PARAMS;
+    const encoding = o.encoding || 'ternary';
+    const rainLevel = o.rainLevel || 'dry';
+    const payloadName = o.payloadName || 'ATLAS/farm_log';
+    const packetRun = runTcpTransfer({
+      seed, params, encoding, tcpMode: 'avian', rainLevel, payloadName, recordDraws: false
+    });
+    const rng = createRNG(seed ^ 0x7a651234, { recordDraws: false });
+    const v = detClamp(rng.gaussian(params.speedMeanMps, params.speedSdMps, 'race_v'), params.speedMinMps, params.speedMaxMps);
+    const carShuttleS = params.shuttleTransitS;
+    const flightS = packetRun.distanceM / v;
+    const cardS = params.cardLoadUnloadSeconds;
+    const microSdTotalS = carShuttleS + flightS + cardS;
+    const microSdLost = rng.next('race_l') < params.baseLossProb * 0.45;
+    const microSdIntact = !microSdLost;
+
+    let winner = 'NONE';
+    if (microSdIntact && (!packetRun.success || microSdTotalS < packetRun.completionTimeS)) {
+      winner = 'MICROSD_PIGEON';
+    } else if (packetRun.success) {
+      winner = 'PACKET_STREAM';
+    }
+
+    return {
+      seed,
+      distanceM: packetRun.distanceM,
+      payloadName,
+      encoding,
+      rainLevel,
+      packetStreamSuccess: packetRun.success,
+      packetStreamTimeS: packetRun.completionTimeS,
+      microSdIntact,
+      microSdBreakdown: { carShuttleS, flightS, cardLoadUnloadS: cardS },
+      microSdTotalS,
+      winner
+    };
+  }
+
+  // Barcode sweep: SER and net goodput vs sigma (§3)
+  function runBarcodeSweep(sigmas, trialsPerSigma, seed) {
+    const rng = createRNG(seed || 0xBA4C0DE, { recordDraws: false });
+    const results = [];
+    for (let sIdx = 0; sIdx < sigmas.length; sIdx++) {
+      const sigma = sigmas[sIdx];
+      const row = { sigma, binary: null, ternary: null };
+      for (const enc of ['binary', 'ternary']) {
+        const spec = enc === 'binary' ? SCRAP_SPEC.binary : SCRAP_SPEC.ternary;
+        let dotTotal = 0, dotErrors = 0, pktOk = 0, netBits = 0;
+        for (let t = 0; t < trialsPerSigma; t++) {
+          const payload = new Uint8Array(spec.mssBytes);
+          for (let b = 0; b < spec.mssBytes; b++) payload[b] = Math.floor(rng.next('sw_p') * 256);
+          const scrap = encodeSegmentToScrap({ seq: t + 1, ack: 0, flags: TCP_FLAG_DAT, win: 16, payload }, enc);
+          const intensities = dotsToIntensities(scrap.dots, enc, sigma, rng);
+          const dec = decodeScrapFromIntensities(intensities, enc);
+          for (let d = 0; d < scrap.dots.length; d++) {
+            dotTotal++;
+            if (dec.decodedDots[d] !== scrap.dots[d]) dotErrors++;
+          }
+          if (dec.ok) {
+            // Verify payload exact match
+            let exact = dec.segment.payload.length === payload.length;
+            if (exact) {
+              for (let b = 0; b < payload.length; b++) {
+                if (dec.segment.payload[b] !== payload[b]) { exact = false; break; }
+              }
+            }
+            if (exact) {
+              pktOk++;
+              netBits += spec.mssBytes * 8;
+            }
+          }
+        }
+        row[enc] = {
+          mssBytes: spec.mssBytes,
+          symbolErrorRate: dotErrors / dotTotal,
+          packetSuccessRate: pktOk / trialsPerSigma,
+          netGoodputBitsPerPacket: netBits / trialsPerSigma
+        };
+      }
+      results.push(row);
+    }
+    return results;
+  }
+
+  return {
+    PI, TWO_PI, HALF_PI,
+    detSin, detCos, detAtan2, detExp, detLn, detClamp,
+    sha256Bytes, sha256String, crc32Bytes,
+    createRNG,
+    TRYTE_MIN, TRYTE_MAX, TRYTE_OFFSET, TRYTE_UMAX,
+    hashTrytes, packTrytesToBytes, unpackBytesToTrytes, createLoftDiskImages,
+    SCRAP_SPEC, rsEncode, rsDecode, encodeSegmentToScrap, dotsToIntensities, decodeScrapFromIntensities,
+    CALIBRATED_PARAMS, CALIBRATED_PARAMS_HASH, hashParams,
+    terrainHeight, createWorld, rainAtPoint, createBird, stepFlightSim, autopilotInput, runSingle3DFlight,
+    runTcpTransfer, runBergenScenario, runWinstonBlindScenario, runWinstonRace, runBarcodeSweep
+  };
+}));
+
+</script>
+
+<!-- 3D Renderer & App Controller -->
+<script>
+(function () {
+  'use strict';
+  const W = window.__WINSTON_CORE__;
+  const canvas = document.getElementById('viewport');
+  const ctx = canvas.getContext('2d');
+  const scrapCanvas = document.getElementById('scrapCanvas');
+  const sctx = scrapCanvas.getContext('2d');
+
+  // State
+  let appMode = 'relay'; // 'relay' | 'free'
+  let paused = false;
+  let firstPerson = false;
+  let pilotActive = false;
+  let replayActive = false;
+  let raceActive = false;
+  let raceMicroSdT = 0;
+  let racePacketT = 0;
+  let replayTick = 0;
+  let recordedInputs = [];
+  let lastPilotSeed = 101;
+  let lastPilotResult = null;
+  let lastTransfer = null;
+
+  // Objectives (persisted via try/catch in localStorage)
+  const STORAGE_KEY = 'winston_relay_objectives_v1';
+  let objectives = { relayOk: false, pilotReplayOk: false, raceOk: false };
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) Object.assign(objectives, JSON.parse(saved));
+  } catch (e) {}
+
+  function saveObjectives() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(objectives)); } catch (e) {}
+    updateObjectivesUI();
+  }
+
+  function allObjectivesDone() {
+    return objectives.relayOk && objectives.pilotReplayOk && objectives.raceOk;
+  }
+
+  function updateObjectivesUI() {
+    const setLi = (id, done, text) => {
+      const el = document.getElementById(id);
+      el.className = done ? 'done' : '';
+      el.innerHTML = (done ? '&#9745; ' : '&#9744; ') + text;
+    };
+    setLi('obj1', objectives.relayOk, 'Deliver a file with matching tryte hash');
+    setLi('obj2', objectives.pilotReplayOk, 'Complete a piloted flight &amp; replay');
+    setLi('obj3', objectives.raceOk, 'Finish a Winston Race');
+    const btnRef = document.getElementById('btnRef');
+    if (allObjectivesDone()) btnRef.classList.remove('hidden');
+    else btnRef.classList.add('hidden');
+  }
+
+  // Active 3D World & Bird
+  let world = W.createWorld(101, { rainIntensity: 0 });
+  let bird = W.createBird(world.loftA, world.loftB, 'LOFT-B', W.CALIBRATED_PARAMS);
+  let shuttleX = 0;
+  let shuttleDir = 1;
+  let ambientBirds = [];
+
+  function initAmbientBirds() {
+    ambientBirds = [];
+    for (let i = 0; i < 6; i++) {
+      ambientBirds.push({
+        angle: i * 1.05,
+        radius: 18 + (i % 3) * 8,
+        yOff: (i % 2) * 3.5
+      });
+    }
+  }
+  initAmbientBirds();
+
+  // Keyboard input state (sampled per fixed physics tick)
+  const keys = Object.create(null);
+  let pendingPeck = false;
+  let pendingUse = false;
+  let pendingCoo = false;
+
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Escape') {
+      paused = !paused;
+      document.getElementById('pauseModal').classList.toggle('open', paused);
+      if (paused && document.pointerLockElement) {
+        try { document.exitPointerLock(); } catch (_) {}
+      }
+      return;
+    }
+    if (paused) return;
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) return;
+    keys[e.code] = true;
+    if (e.code === 'KeyE') pendingPeck = true;
+    if (e.code === 'KeyF') pendingUse = true;
+    if (e.code === 'KeyQ') pendingCoo = true;
+    if (e.code === 'KeyV') firstPerson = !firstPerson;
+  });
+
+  window.addEventListener('keyup', (e) => {
+    keys[e.code] = false;
+  });
+
+  function sampleUserInput() {
+    const inp = {
+      left: !!keys['KeyA'] || !!keys['ArrowLeft'],
+      right: !!keys['KeyD'] || !!keys['ArrowRight'],
+      pitchUp: !!keys['KeyS'] || !!keys['ArrowDown'],
+      pitchDown: !!keys['KeyW'] || !!keys['ArrowUp'],
+      forward: !!keys['KeyW'] || !!keys['ArrowUp'],
+      flap: !!keys['Space'],
+      takeoff: !!keys['Space'],
+      dive: !!keys['ShiftLeft'] || !!keys['ShiftRight'],
+      land: !!keys['KeyC'],
+      peck: pendingPeck,
+      use: pendingUse,
+      coo: pendingCoo
+    };
+    pendingPeck = false;
+    pendingUse = false;
+    pendingCoo = false;
+    return inp;
+  }
+
+  function addLog(msg) {
+    const box = document.getElementById('logBox');
+    const line = document.createElement('div');
+    line.textContent = msg;
+    box.appendChild(line);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function drawPaperScrap(dots, encoding, sigma) {
+    const cols = W.SCRAP_SPEC.cols;
+    const rows = W.SCRAP_SPEC.rows;
+    const cw = scrapCanvas.width / cols;
+    const ch = scrapCanvas.height / rows;
+    sctx.fillStyle = '#f4f1e6';
+    sctx.fillRect(0, 0, scrapCanvas.width, scrapCanvas.height);
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const idx = r * cols + c;
+        const v = dots ? dots[idx] : 0;
+        let shade;
+        if (encoding === 'binary') shade = v ? 245 : 22;
+        else shade = v === 0 ? 22 : (v === 1 ? 132 : 245);
+        sctx.fillStyle = 'rgb(' + shade + ',' + shade + ',' + shade + ')';
+        sctx.fillRect(c * cw + 1, r * ch + 1, cw - 2, ch - 2);
+      }
+    }
+    if (sigma > 0) {
+      sctx.fillStyle = 'rgba(110, 145, 185, ' + Math.min(0.45, sigma * 2.2) + ')';
+      sctx.fillRect(0, 0, scrapCanvas.width, scrapCanvas.height);
+    }
+    const spec = encoding === 'binary' ? W.SCRAP_SPEC.binary : W.SCRAP_SPEC.ternary;
+    document.getElementById('scrapInfo').textContent =
+      (encoding === 'binary' ? 'Binary' : 'Ternary') + ' \u00b7 RS(' + spec.codedBytes + ',' + spec.dataBytes + ')';
+    document.getElementById('scrapSigma').textContent = '\u03c3 = ' + sigma.toFixed(3);
+  }
+
+  function getRainVal(level) {
+    return level === 'storm' ? 1.0 : (level === 'drizzle' ? 0.5 : 0.0);
+  }
+
+  function resetWorldFromUI() {
+    const seed = parseInt(document.getElementById('inpSeed').value, 10) || 101;
+    const rainLevel = document.getElementById('selRain').value;
+    world = W.createWorld(seed, { rainIntensity: getRainVal(rainLevel) });
+    bird = W.createBird(world.loftA, world.loftB, 'LOFT-B', W.CALIBRATED_PARAMS);
+    document.getElementById('freeSeedVal').textContent = String(seed);
+    document.getElementById('stDist').textContent = world.loftDist.toFixed(1) + ' m';
+    const enc = document.getElementById('selEnc').value;
+    const demoScrap = W.encodeSegmentToScrap({ seq: 1, ack: 0, flags: 8, win: 8, payload: new Uint8Array([42, 99, 17]) }, enc);
+    drawPaperScrap(demoScrap.dots, enc, rainLevel === 'storm' ? 0.135 : (rainLevel === 'drizzle' ? 0.065 : 0));
+  }
+
+  // UI Handlers
+  function setMode(mode) {
+    appMode = mode;
+    pilotActive = false;
+    replayActive = false;
+    raceActive = false;
+    document.getElementById('tabRelay').classList.toggle('active', mode === 'relay');
+    document.getElementById('tabFree').classList.toggle('active', mode === 'free');
+    document.getElementById('hudLeft').classList.toggle('hidden', mode !== 'relay');
+    document.getElementById('hudRight').classList.toggle('hidden', mode !== 'relay');
+    document.getElementById('freeBadge').style.display = mode === 'free' ? 'block' : 'none';
+    resetWorldFromUI();
+  }
+
+  document.getElementById('tabRelay').addEventListener('click', () => setMode('relay'));
+  document.getElementById('tabFree').addEventListener('click', () => setMode('free'));
+  document.getElementById('btnPause').addEventListener('click', () => {
+    paused = !paused;
+    document.getElementById('pauseModal').classList.toggle('open', paused);
+  });
+  document.getElementById('btnResume').addEventListener('click', () => {
+    paused = false;
+    document.getElementById('pauseModal').classList.remove('open');
+  });
+
+  document.getElementById('btnRef').addEventListener('click', () => {
+    if (!allObjectivesDone()) return;
+    const rawB64 = document.getElementById('winston-locked-ref').textContent.trim();
+    const rows = JSON.parse(atob(rawB64));
+    const tbody = document.getElementById('refTbody');
+    tbody.innerHTML = '';
+    for (const r of rows) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + r[0] + '</td><td><strong>' + r[1] + '</strong></td><td>' + r[2] + '</td>';
+      tbody.appendChild(tr);
+    }
+    document.getElementById('refModal').classList.add('open');
+  });
+  document.getElementById('btnCloseRef').addEventListener('click', () => {
+    document.getElementById('refModal').classList.remove('open');
+  });
+
+  document.getElementById('btnRunTcp').addEventListener('click', () => {
+    resetWorldFromUI();
+    pilotActive = false;
+    replayActive = false;
+    raceActive = false;
+    const seed = parseInt(document.getElementById('inpSeed').value, 10) || 101;
+    const payloadName = document.getElementById('selPayload').value;
+    const encoding = document.getElementById('selEnc').value;
+    const tcpMode = document.getElementById('selTcp').value;
+    const rainLevel = document.getElementById('selRain').value;
+    const res = W.runTcpTransfer({ seed, payloadName, encoding, tcpMode, rainLevel, recordDraws: false });
+    lastTransfer = res;
+
+    document.getElementById('stTcp').textContent = res.tcpState;
+    document.getElementById('stTcp').className = 'v ' + (res.success ? 'ok' : 'err');
+    document.getElementById('stHash').textContent = res.hashMatch ? 'MATCH' : (res.stallReason || 'FAIL');
+    document.getElementById('stHash').className = 'v ' + (res.hashMatch ? 'ok' : 'err');
+    document.getElementById('stBirds').textContent = String(res.pigeonsDispatched);
+    document.getElementById('stRetx').textContent = String(res.retransmits);
+    document.getElementById('stTime').textContent = res.completionTimeS.toFixed(1) + ' s';
+    document.getElementById('stDist').textContent = res.distanceM.toFixed(1) + ' m';
+    document.getElementById('tcpAckBar').style.width = res.success ? '100%' : '22%';
+    document.getElementById('tcpFlyBar').style.width = res.success ? '0%' : '18%';
+
+    const demoScrap = W.encodeSegmentToScrap({ seq: 1, ack: 0, flags: 8, win: 16, payload: new Uint8Array([seed & 255, 77, 13]) }, encoding);
+    drawPaperScrap(demoScrap.dots, encoding, res.sigma);
+
+    addLog('[' + tcpMode.toUpperCase() + '/' + encoding + '/' + rainLevel + '] ' +
+      (res.success ? 'DELIVERED ' : 'FAILED (' + res.stallReason + ') ') +
+      res.pigeonsDispatched + ' birds, ' + res.retransmits + ' retx, ' + res.completionTimeS.toFixed(1) + 's');
+
+    if (res.success && res.hashMatch) {
+      objectives.relayOk = true;
+      saveObjectives();
+    }
+  });
+
+  document.getElementById('btnPilot').addEventListener('click', () => {
+    resetWorldFromUI();
+    lastPilotSeed = parseInt(document.getElementById('inpSeed').value, 10) || 101;
+    recordedInputs = [];
+    pilotActive = true;
+    replayActive = false;
+    raceActive = false;
+    document.getElementById('btnReplay').disabled = true;
+    addLog('Piloting packet carrier from LOFT-A to LOFT-B (seed ' + lastPilotSeed + ').');
+  });
+
+  document.getElementById('btnReplay').addEventListener('click', () => {
+    if (recordedInputs.length === 0) return;
+    document.getElementById('inpSeed').value = String(lastPilotSeed);
+    resetWorldFromUI();
+    pilotActive = false;
+    replayActive = true;
+    replayTick = 0;
+    addLog('Replaying ' + recordedInputs.length + ' recorded physics ticks...');
+  });
+
+  document.getElementById('btnRace').addEventListener('click', () => {
+    resetWorldFromUI();
+    const seed = parseInt(document.getElementById('inpSeed').value, 10) || 101;
+    const payloadName = document.getElementById('selPayload').value;
+    const encoding = document.getElementById('selEnc').value;
+    const rainLevel = document.getElementById('selRain').value;
+    const rider = document.getElementById('selRider').value;
+    const race = W.runWinstonRace(seed, { payloadName, encoding, rainLevel });
+    raceActive = true;
+    pilotActive = true;
+    recordedInputs = [];
+    raceMicroSdT = race.microSdTotalS;
+    racePacketT = race.packetStreamTimeS;
+    addLog('Winston Race (' + rider + '): microSD=' + race.microSdTotalS.toFixed(1) +
+      's vs Packets=' + race.packetStreamTimeS.toFixed(1) + 's -> Winner: ' + race.winner);
+    objectives.raceOk = true;
+    saveObjectives();
+  });
+
+  // --------------------------------------------------------------------------
+  // 3D SOFTWARE PERSPECTIVE RENDERER (zero external deps, 100% offline)
+  // --------------------------------------------------------------------------
+  function resizeCanvas() {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    canvas.width = Math.max(320, Math.floor(rect.width));
+    canvas.height = Math.max(240, Math.floor(rect.height));
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  function render3D() {
+    const w = canvas.width;
+    const h = canvas.height;
+    const rainK = world.rainIntensity;
+
+    // Sky gradient
+    const sky = ctx.createLinearGradient(0, 0, 0, h * 0.62);
+    if (rainK > 0.6) {
+      sky.addColorStop(0, '#1e293b');
+      sky.addColorStop(1, '#475569');
+    } else if (rainK > 0.1) {
+      sky.addColorStop(0, '#2c4a6b');
+      sky.addColorStop(1, '#7a9ab8');
+    } else {
+      sky.addColorStop(0, '#1d4ed8');
+      sky.addColorStop(0.55, '#60a5fa');
+      sky.addColorStop(1, '#dbeafe');
+    }
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, w, h);
+
+    // Horizon ground fill
+    ctx.fillStyle = rainK > 0.6 ? '#263829' : '#3d5e37';
+    ctx.fillRect(0, h * 0.5, w, h * 0.5);
+
+    // Camera transform (chase or first-person)
+    const camYaw = bird.yaw;
+    const camPitch = firstPerson ? bird.pitch : (bird.pitch * 0.4 - 0.18);
+    const cosY = Math.cos(camYaw), sinY = Math.sin(camYaw);
+    const cosP = Math.cos(camPitch), sinP = Math.sin(camPitch);
+
+    const camX = firstPerson ? bird.x + sinY * 0.9 : bird.x - sinY * 14.0;
+    const camY = firstPerson ? bird.y + 0.55 : bird.y + 5.2;
+    const camZ = firstPerson ? bird.z + cosY * 0.9 : bird.z - cosY * 14.0;
+    const fov = Math.min(w, h) * 0.85;
+
+    function project(px, py, pz) {
+      const dx = px - camX, dy = py - camY, dz = pz - camZ;
+      // Rotate by -camYaw around Y
+      const rx = dx * cosY - dz * sinY;
+      const rz1 = dx * sinY + dz * cosY;
+      // Rotate by -camPitch around X
+      const ry = dy * cosP - rz1 * sinP;
+      const rz = dy * sinP + rz1 * cosP;
+      if (rz <= 0.6) return null;
+      const scale = fov / rz;
+      return { x: w * 0.5 + rx * scale, y: h * 0.5 - ry * scale, z: rz, s: scale };
+    }
+
+    const drawList = [];
+
+    // 1. Procedural 3D terrain patches around bird
+    const gridStep = 26;
+    const baseGX = Math.floor(bird.x / gridStep) * gridStep;
+    const baseGZ = Math.floor(bird.z / gridStep) * gridStep;
+    for (let gx = baseGX - gridStep * 8; gx <= baseGX + gridStep * 8; gx += gridStep) {
+      for (let gz = baseGZ - gridStep * 8; gz <= baseGZ + gridStep * 8; gz += gridStep) {
+        const y00 = W.terrainHeight(gx, gz, world.seed);
+        const y10 = W.terrainHeight(gx + gridStep, gz, world.seed);
+        const y11 = W.terrainHeight(gx + gridStep, gz + gridStep, world.seed);
+        const y01 = W.terrainHeight(gx, gz + gridStep, world.seed);
+        const p00 = project(gx, y00, gz);
+        const p10 = project(gx + gridStep, y10, gz);
+        const p11 = project(gx + gridStep, y11, gz + gridStep);
+        const p01 = project(gx, y01, gz + gridStep);
+        if (!p00 || !p10 || !p11 || !p01) continue;
+        const avgZ = (p00.z + p10.z + p11.z + p01.z) * 0.25;
+        if (avgZ > 360) continue;
+        const avgY = (y00 + y10 + y11 + y01) * 0.25;
+        let fill;
+        if (avgY < -1.1) {
+          fill = '#2563eb'; // Pond water
+        } else if (gx > 130 && gz < -60) {
+          fill = '#94a3b8'; // Town cobblestone
+        } else if (gx < -100 && gz < -30) {
+          fill = '#234f2c'; // Woods floor
+        } else {
+          const shade = Math.max(0, Math.min(25, Math.floor((y10 - y00) * 4)));
+          fill = ((gx / gridStep + gz / gridStep) & 1)
+            ? 'rgb(' + (64 + shade) + ',' + (116 + shade) + ',' + (58 + shade) + ')'
+            : 'rgb(' + (74 + shade) + ',' + (126 + shade) + ',' + (62 + shade) + ')';
+        }
+        drawList.push({
+          z: avgZ + 50,
+          draw: () => {
+            ctx.beginPath();
+            ctx.moveTo(p00.x, p00.y); ctx.lineTo(p10.x, p10.y);
+            ctx.lineTo(p11.x, p11.y); ctx.lineTo(p01.x, p01.y);
+            ctx.closePath();
+            ctx.fillStyle = fill;
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+            ctx.stroke();
+          }
+        });
+      }
+    }
+
+    // Helper: 3D vertical prism / building
+    function queueBox(cx, cy, cz, bw, bh, bd, bodyColor, roofColor, label) {
+      const pBase = project(cx, cy, cz);
+      const pTop = project(cx, cy + bh, cz);
+      if (!pBase || !pTop) return;
+      const rw = bw * pBase.s;
+      const rh = Math.abs(pBase.y - pTop.y);
+      drawList.push({
+        z: pBase.z,
+        draw: () => {
+          ctx.fillStyle = bodyColor;
+          ctx.fillRect(pBase.x - rw * 0.5, pTop.y, rw, rh);
+          ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+          ctx.strokeRect(pBase.x - rw * 0.5, pTop.y, rw, rh);
+          if (roofColor) {
+            ctx.beginPath();
+            ctx.moveTo(pBase.x - rw * 0.6, pTop.y);
+            ctx.lineTo(pBase.x, pTop.y - rw * 0.35);
+            ctx.lineTo(pBase.x + rw * 0.6, pTop.y);
+            ctx.closePath();
+            ctx.fillStyle = roofColor;
+            ctx.fill();
+          }
+          if (label && pBase.z < 290) {
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 11px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(label, pBase.x, pTop.y - rw * 0.42 - 4);
+          }
+        }
+      });
+    }
+
+    // 2. LOFT-A & LOFT-B + Landmarks
+    queueBox(world.loftA.x, world.loftA.y - 3.5, world.loftA.z, 9, 6.5, 9, '#b45309', '#7c2d12', 'LOFT-A');
+    queueBox(world.loftB.x, world.loftB.y - 3.5, world.loftB.z, 9, 6.5, 9, '#0369a1', '#0c4a6e', 'LOFT-B');
+    queueBox(-35, W.terrainHeight(-35, -135, world.seed), -135, 7, 15, 7, '#d6d3d1', '#78350f', 'Windmill');
+    queueBox(185, W.terrainHeight(185, -120, world.seed), -120, 8, 19, 8, '#cbd5e1', '#991b1b', 'Bell Tower');
+    queueBox(-190, W.terrainHeight(-190, -90, world.seed), -90, 6, 7, 6, '#713f12', '#3f6212', 'Lookout');
+
+    // 3. Car Shuttle on farm road
+    const roadY = W.terrainHeight(shuttleX, -22, world.seed);
+    queueBox(shuttleX, roadY, -22, 4.2, 2.0, 2.4, '#e11d48', '#881337', 'Shuttle');
+
+    // 4. Forage piles, People, Carryables
+    for (const f of world.forageItems) {
+      if (f.eaten) continue;
+      const p = project(f.x, f.y, f.z);
+      if (!p || p.z > 220) continue;
+      drawList.push({
+        z: p.z,
+        draw: () => {
+          ctx.fillStyle = '#fbbf24';
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, Math.max(2.5, 0.7 * p.s), 0, Math.PI * 2);
+          ctx.fill();
+        }
+      });
+    }
+    for (const pe of world.people) {
+      queueBox(pe.x, pe.y, pe.z, 1.1, 2.1, 1.1, '#4f46e5', '#fde68a', pe.label);
+    }
+    for (const c of world.carryables) {
+      if (c.carried || c.delivered) continue;
+      const p = project(c.x, c.y, c.z);
+      if (!p || p.z > 180) continue;
+      drawList.push({
+        z: p.z,
+        draw: () => {
+          ctx.fillStyle = '#f43f5e';
+          ctx.fillRect(p.x - 3, p.y - 3, 6, 6);
+        }
+      });
+    }
+
+    // 5. Hawk (predator)
+    if (world.hawk.active) {
+      const ph = project(world.hawk.x, world.hawk.y, world.hawk.z);
+      if (ph) {
+        drawList.push({
+          z: ph.z,
+          draw: () => {
+            const ws = Math.max(6, 2.4 * ph.s);
+            ctx.strokeStyle = '#7f1d1d';
+            ctx.lineWidth = Math.max(2, 0.35 * ph.s);
+            ctx.beginPath();
+            ctx.moveTo(ph.x - ws, ph.y - ws * 0.2);
+            ctx.quadraticCurveTo(ph.x, ph.y + ws * 0.3, ph.x + ws, ph.y - ws * 0.2);
+            ctx.stroke();
+            ctx.fillStyle = '#fca5a5';
+            ctx.font = 'bold 10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('HAWK', ph.x, ph.y - ws * 0.4);
+          }
+        });
+      }
+    }
+
+    // 6. Neighbour's flock
+    for (const ab of ambientBirds) {
+      const a = ab.angle + world.flockCenter.angle;
+      const bx = world.flockCenter.x + Math.cos(a) * ab.radius;
+      const bz = world.flockCenter.z + Math.sin(a) * ab.radius;
+      const by = world.flockCenter.y + ab.yOff;
+      const pb = project(bx, by, bz);
+      if (!pb) continue;
+      drawList.push({
+        z: pb.z,
+        draw: () => {
+          const ws = Math.max(3, 1.1 * pb.s);
+          ctx.strokeStyle = '#e2e8f0';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(pb.x - ws, pb.y);
+          ctx.lineTo(pb.x, pb.y + ws * 0.3);
+          ctx.lineTo(pb.x + ws, pb.y);
+          ctx.stroke();
+        }
+      });
+    }
+
+    // 7. Rain squall clouds
+    for (const sq of world.squalls) {
+      const ps = project(sq.x, 48, sq.z);
+      if (!ps) continue;
+      drawList.push({
+        z: ps.z,
+        draw: () => {
+          const rad = Math.max(14, sq.radius * 0.35 * ps.s);
+          ctx.fillStyle = 'rgba(51, 65, 85, 0.45)';
+          ctx.beginPath();
+          ctx.ellipse(ps.x, ps.y, rad, rad * 0.4, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      });
+    }
+
+    // Painter's sort back-to-front
+    drawList.sort((a, b) => b.z - a.z);
+    for (let i = 0; i < drawList.length; i++) drawList[i].draw();
+
+    // 8. Player / Active Pigeon (third-person view)
+    if (!firstPerson) {
+      const pb = project(bird.x, bird.y, bird.z);
+      if (pb) {
+        const wingY = Math.sin(bird.flapPhase) * 14;
+        ctx.save();
+        ctx.translate(pb.x, pb.y);
+        ctx.rotate(-bird.roll * 0.6);
+        // Wings
+        ctx.fillStyle = '#94a3b8';
+        ctx.beginPath();
+        ctx.moveTo(0, 0); ctx.lineTo(-28, -4 + wingY); ctx.lineTo(-10, 8); ctx.closePath();
+        ctx.moveTo(0, 0); ctx.lineTo(28, -4 + wingY); ctx.lineTo(10, 8); ctx.closePath();
+        ctx.fill();
+        // Body
+        ctx.fillStyle = '#e2e8f0';
+        ctx.beginPath();
+        ctx.ellipse(0, 2, 7, 13, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Iridescent neck band
+        ctx.fillStyle = '#10b981';
+        ctx.fillRect(-5, -8, 10, 4);
+        // Tiny paper packet strapped to leg (in relay mode)
+        if (appMode === 'relay') {
+          ctx.fillStyle = '#fef3c7';
+          ctx.fillRect(-4, 6, 8, 5);
+        }
+        ctx.restore();
+      }
+    }
+
+    // 9. Screen-space rain streaks when flying in rain
+    const localRain = W.rainAtPoint(world, bird.x, bird.z);
+    if (localRain > 0.05) {
+      ctx.strokeStyle = 'rgba(203, 213, 225, 0.42)';
+      ctx.lineWidth = 1;
+      const drops = Math.floor(localRain * 70);
+      for (let i = 0; i < drops; i++) {
+        const rx = ((i * 97 + world.time * 240) % w);
+        const ry = ((i * 131 + world.time * 620) % h);
+        ctx.beginPath();
+        ctx.moveTo(rx, ry);
+        ctx.lineTo(rx - 4, ry + 14);
+        ctx.stroke();
+      }
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // FIXED-TIMESTEP SIMULATION LOOP (Decoupled from Render FPS — §2b.2)
+  // --------------------------------------------------------------------------
+  const FIXED_DT = W.CALIBRATED_PARAMS.fixedDt;
+  let accum = 0;
+  let lastTs = performance.now();
+
+  function tickSim() {
+    // Move car shuttle visually between lofts
+    shuttleX += shuttleDir * 12.0 * FIXED_DT;
+    if (shuttleX > world.loftB.x) shuttleDir = -1;
+    if (shuttleX < world.loftA.x) shuttleDir = 1;
+
+    if (appMode === 'free') {
+      const inp = sampleUserInput();
+      W.stepFlightSim(world, bird, inp, W.CALIBRATED_PARAMS, { freeMode: true });
+      document.getElementById('freeAlt').textContent = bird.y.toFixed(1) + ' m';
+    } else if (pilotActive && bird.alive && !bird.arrived) {
+      const inp = sampleUserInput();
+      recordedInputs.push(inp);
+      W.stepFlightSim(world, bird, inp, W.CALIBRATED_PARAMS, { freeMode: false });
+      if (bird.arrived || !bird.alive) {
+        pilotActive = false;
+        document.getElementById('btnReplay').disabled = false;
+        lastPilotResult = { arrived: bird.arrived, time: bird.flightTime, ticks: recordedInputs.length };
+        addLog('Piloted flight ' + (bird.arrived ? 'ARRIVED' : 'LOST (' + bird.lostReason + ')') +
+          ' in ' + bird.flightTime.toFixed(2) + 's (' + recordedInputs.length + ' ticks).');
+      }
+    } else if (replayActive && bird.alive && !bird.arrived) {
+      const inp = recordedInputs[replayTick] || {};
+      W.stepFlightSim(world, bird, inp, W.CALIBRATED_PARAMS, { freeMode: false });
+      replayTick++;
+      if (bird.arrived || !bird.alive || replayTick >= recordedInputs.length) {
+        replayActive = false;
+        const matched = lastPilotResult && Math.abs(bird.flightTime - lastPilotResult.time) < 1e-9;
+        addLog('Replay finished: ' + bird.flightTime.toFixed(2) + 's (bit-identical: ' + matched + ').');
+        if (matched) {
+          objectives.pilotReplayOk = true;
+          saveObjectives();
+        }
+      }
+    } else {
+      // Idle scenic autopilot flight in Packet Relay mode
+      if (bird.arrived || !bird.alive) {
+        const nextTarget = bird.targetPos === world.loftB ? world.loftA : world.loftB;
+        const startPos = nextTarget === world.loftB ? world.loftA : world.loftB;
+        bird = W.createBird(startPos, nextTarget, nextTarget.name, W.CALIBRATED_PARAMS);
+      }
+      const inp = W.autopilotInput(bird, world);
+      W.stepFlightSim(world, bird, inp, W.CALIBRATED_PARAMS, { freeMode: false });
+    }
+
+    // Update telemetry HUD
+    const spd = Math.sqrt(bird.vx * bird.vx + bird.vy * bird.vy + bird.vz * bird.vz);
+    document.getElementById('stSpd').textContent = spd.toFixed(1) + ' m/s';
+    document.getElementById('stAlt').textContent = bird.y.toFixed(1) + ' m';
+    document.getElementById('stStam').textContent = Math.round((1 - bird.fatigue) * 100) + '%';
+    document.getElementById('stRainExp').textContent = bird.rainExposure.toFixed(2);
+  }
+
+  function frame(ts) {
+    const dt = Math.min(0.1, (ts - lastTs) / 1000);
+    lastTs = ts;
+    if (!paused) {
+      accum += dt;
+      while (accum >= FIXED_DT) {
+        tickSim();
+        accum -= FIXED_DT;
+      }
+    }
+    render3D();
+    requestAnimationFrame(frame);
+  }
+
+  // Headless auditor hook (§2c.6 — never exposed in UI)
+  window.__WINSTON__ = {
+    core: W,
+    getState: () => ({
+      mode: appMode, paused, objectives: { ...objectives },
+      paramsHash: W.CALIBRATED_PARAMS_HASH,
+      bird: { ...bird },
+      worldSeed: world.seed,
+      loftDist: world.loftDist,
+      lastTransfer
+    }),
+    setMode,
+    stepHeadless: (inputsArray, freeMode) => {
+      for (let i = 0; i < inputsArray.length; i++) {
+        W.stepFlightSim(world, bird, inputsArray[i], W.CALIBRATED_PARAMS, { freeMode: !!freeMode });
+      }
+      return { ...bird };
+    }
+  };
+
+  updateObjectivesUI();
+  resetWorldFromUI();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
