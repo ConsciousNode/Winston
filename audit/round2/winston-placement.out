@@ -1,0 +1,11 @@
+params hash (delivered constant): a1b2718096e51c1018e33dd83669da756ba14f84bef1acfc0063ed4dba9988b7
+params hash (recomputed):         a1b2718096e51c1018e33dd83669da756ba14f84bef1acfc0063ed4dba9988b7
+20,000 seeds, 17148 arrived; flight p5/p50/p95 = 4835/5888/7531 s; total p5/p50/p95 = 6614/8217/10212 s
+real flight 68 min (4080 s) sits at percentile 0.058 of predicted flight time
+real total 2 h 6 min 57 s (7617 s) sits at percentile 27.6 of predicted total transfer
+implied real speed 23.77 m/s vs predicted speed N(16.5, 2.2) clamped [9, 25]
+bergen result keys: seed,sent,ninthSent,completions,minRtt,maxRtt,rtts
+speed x0.5: Bergen inside central 90% -> {"comp":true,"min":true,"max":true,"minP50":"4017","maxP50":"6328"}
+speed x1: Bergen inside central 90% -> {"comp":true,"min":true,"max":true,"minP50":"3578","maxP50":"5882"}
+speed x1.44: Bergen inside central 90% -> {"comp":true,"min":true,"max":true,"minP50":"3384","maxP50":"5699"}
+speed x2: Bergen inside central 90% -> {"comp":true,"min":true,"max":true,"minP50":"3268","maxP50":"5577"}

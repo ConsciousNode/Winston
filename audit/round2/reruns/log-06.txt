@@ -1,0 +1,1 @@
+[06] Free-play isolation (5 min = 18,000 ticks): PASS (identical=true, frozen=true)

@@ -19,7 +19,7 @@ What's in it:
 - **Spec:** [`SPEC.md`](SPEC.md), rev 4.1, written by Ed Interim and Kehai Interim and amended by Kham.
 - **Built by:** Gemini Neon (sent 2026-11-25).
 - **Delivery 1:** arrived 2026-11-25, committed as delivered in `delivery-1/`, audited in [`AUDIT-1.md`](AUDIT-1.md): accept, with the blind Winston flight prediction an honest miss.
-- **Round 2:** [`SPEC-2.md`](SPEC-2.md) (real Three.js world, Bergen fitter, full-send Pigeon Life), preregistered before sending.
+- **Round 2:** [`SPEC-2.md`](SPEC-2.md) (real Three.js world, Bergen fitter, full-send Pigeon Life), preregistered before sending. Delivered in `delivery-2/`, audited in [`AUDIT-2.md`](AUDIT-2.md): accept.
 
 ## Preregistration
 
